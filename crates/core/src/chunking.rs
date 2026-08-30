@@ -371,7 +371,7 @@ mod tests {
     fn property_chunks_cover_every_line_within_window() {
         // 确定性伪随机（xorshift 常数 LCG），避免引入属性测试依赖。
         let mut state: u64 = 0x02_5F_02;
-        let mut lcg = |state: &mut u64| {
+        let lcg = |state: &mut u64| {
             *state = state
                 .wrapping_mul(6364136223846793005)
                 .wrapping_add(1442695040888963407);

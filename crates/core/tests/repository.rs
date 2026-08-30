@@ -161,7 +161,7 @@ fn concurrent_writes_serialize_through_the_single_write_queue() {
     }
 
     let total: i64 = repo
-        .read(|conn| Ok(conn.query_row("SELECT COUNT(*) FROM queue_probe", [], |row| row.get(0))?))
+        .read(|conn| conn.query_row("SELECT COUNT(*) FROM queue_probe", [], |row| row.get(0)))
         .expect("count read should succeed");
     assert_eq!(
         i64::try_from(writer_count * writes_per_writer).expect("total fits in i64"),
@@ -217,7 +217,7 @@ fn failed_write_rolls_back_partial_work() {
     );
 
     let committed: i64 = repo
-        .read(|conn| Ok(conn.query_row("SELECT COUNT(*) FROM queue_probe", [], |row| row.get(0))?))
+        .read(|conn| conn.query_row("SELECT COUNT(*) FROM queue_probe", [], |row| row.get(0)))
         .expect("count read should succeed");
     assert_eq!(
         committed, 0,
@@ -252,7 +252,7 @@ fn queue_keeps_accepting_writes_after_a_failed_write() {
     .expect("queue must stay usable after a failed write");
 
     let committed: i64 = repo
-        .read(|conn| Ok(conn.query_row("SELECT COUNT(*) FROM queue_probe", [], |row| row.get(0))?))
+        .read(|conn| conn.query_row("SELECT COUNT(*) FROM queue_probe", [], |row| row.get(0)))
         .expect("count read should succeed");
     assert_eq!(
         committed, 1,

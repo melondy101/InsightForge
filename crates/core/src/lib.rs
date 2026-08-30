@@ -6,6 +6,11 @@
 
 pub mod chunking;
 pub mod repository;
+pub mod scan;
 
 pub use chunking::{chunk_markdown, chunk_plain, Chunk, ChunkConfig, DEFAULT_MAX_CHUNK_CHARS};
 pub use repository::{Migration, Migrator, Repository, RepositoryError};
+pub use scan::{
+    file_identity, normalize_root, open_read_only, stays_within_root, validate_rel_path,
+    IgnoreMatcher, ScanError, ALLOWED_EXTENSIONS, DEFAULT_IGNORE_GLOBS,
+};
