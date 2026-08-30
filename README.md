@@ -2,7 +2,7 @@
 
 > 个人知识库驱动的**反代写**写作引擎 —— AI 只给骨架，血肉由你亲手补。
 
-> ⚠️ **桌面版重写进行中**（2026-08-30 定稿）：项目正转向 Tauri 2 + Rust 本地核心的纯桌面应用，旧 Web 版（≤ 0.3.9）冻结、不再演进。桌面版需求与节奏见 [docs/PRD.md](./docs/PRD.md)、[docs/ROADMAP.md](./docs/ROADMAP.md)；实施票据见 [.scratch/desktop-rewrite/spec.md](./.scratch/desktop-rewrite/spec.md)。下文的 Web 版说明在 01 号票据（移除旧应用）落地前仍与代码一致。
+> ⚠️ **桌面版重写进行中**（2026-08-30 定稿）：项目正转向 Tauri 2 + Rust 本地核心的纯桌面应用，旧 Web 版（≤ 0.3.9）已冻结并于 01 号票移除全部代码，不再演进。桌面版需求与节奏见 [docs/PRD.md](./docs/PRD.md)、[docs/ROADMAP.md](./docs/ROADMAP.md)、[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)；实施票据见 [.scratch/desktop-rewrite/spec.md](./.scratch/desktop-rewrite/spec.md)。下文「页面」「环境变量」「API 路由」「MCP」「部署到 Vercel」等节为 Web 版（≤ 0.3.9）历史说明，仅作存档。
 
 「织知」不替你写，而是做三件市面工具都不做的事：
 
@@ -36,33 +36,27 @@
 - `/library` 成文库：已发布成文 + 回流状态 + 人工字占比 + 复制/下载 Markdown；点击单篇进入 `/library/[id]` 详情
 - `/settings` 设置：反代写护栏阈值（AI 占比上限 / 请求展开次数 / 每日碎片流入上限）+ 创作者身份档案 + AI 记忆机制
 
-## 技术栈
+## 技术栈（桌面版）
 
-- Next.js（App Router）+ TypeScript + Tailwind CSS v4 + shadcn/ui
-- i18n：`react-i18next`（zh-CN / en-US，默认中文）
-- **数据（双后端，自动降级）**：
-  - 配了 `DATABASE_URL`（Postgres，兼容 Neon / Eazo 托管）→ 走数据库（Drizzle ORM，服务端 `/api/kb`）；
-  - 未配 → 回退浏览器 `localStorage`（内置示例知识库，无需登录即可体验）。
-- **AI（BYOK，自动降级）**：直连 **OpenAI 兼容 API**（可接 DeepSeek / OpenAI / StepFun / 任意兼容服务商），受「只出提纲、不出成段文字」硬约束；未配置密钥时自动回退到前端预置骨架 / 本地启发式发现。
+- 桌面壳：Tauri 2（系统 WebView2，Windows 首发）
+- 前端：React + TypeScript + Vite；i18n：`react-i18next`（zh-CN / en-US，默认中文）
+- 本地核心：Rust（`crates/core`，repository 独占 SQLite）
+- 数据：SQLite + FTS5（WAL + 单一写入队列；≥ 3.51.3）
+- 详细决策见 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 
 ## 本地开发
 
 ```bash
-bun install              # 或 npm install
-bun run dev              # 启动开发服务器 http://localhost:3000
-bun run lint
+bun install              # 安装前端依赖
+bun run dev              # 仅前端（Vite dev server，http://localhost:1420）
+bun run tauri dev        # 桌面应用开发模式（Vite + Tauri 壳）
+bun run lint             # eslint
 bun run test             # 运行 vitest
-bun run build            # Web 版构建（SSR + API routes）
-bun run desktop:export   # Tauri 桌面端静态导出 -> out/
+bun run build            # vite build -> dist/
+bun run gate             # 提交前一键门禁（前端 lint/tsc/test/build + Rust fmt/clippy/test/build）
 ```
 
-### 数据库迁移（配置 DATABASE_URL 后）
-
-```bash
-bun run db:migrate       # 应用已有迁移
-bun run db:generate      # 生成新迁移（按需执行）
-bun run db:push          # 直接推送 schema（开发用）
-```
+SQLite 数据库由 Rust repository 在首次启动时于应用数据目录自动创建（`insightforge.sqlite`）并执行版本化迁移，无独立迁移命令。
 
 ## 环境变量
 
@@ -105,12 +99,11 @@ bun run db:push          # 直接推送 schema（开发用）
 ## 桌面端（Tauri）
 
 ```bash
-bun run desktop:export   # 先静态导出到 out/
-bun run tauri dev        # Tauri 开发模式（需全局安装 tauri-cli）
-bun run tauri build      # 打包桌面应用
+bun run tauri dev        # 开发模式（Vite dev server + Tauri 2 壳）
+bun run tauri build      # vite build -> dist/ 后由 Tauri 打包（NSIS/MSI）
 ```
 
-桌面端走纯静态导出 + BYOK 前端直连，无需服务端 API routes。详见 `src-tauri/tauri.conf.json`。
+首次启动会在应用数据目录创建 `insightforge.sqlite` 并跑版本化迁移。详见 `src-tauri/tauri.conf.json` 与 `docs/ARCHITECTURE.md`。
 
 ## 部署到 Vercel
 

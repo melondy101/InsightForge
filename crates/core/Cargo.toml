@@ -1,0 +1,11 @@
+[package]
+name = "insightforge-core"
+version.workspace = true
+edition.workspace = true
+description = "InsightForge 桌面核心：SQLite repository、版本化迁移与领域服务"
+
+[dependencies]
+rusqlite = { version = "0.40", features = ["bundled"] }
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,0 +1,74 @@
+$ bun run lint && bunx tsc --noEmit && bun run test && bun run build && cargo fmt --check && cargo clippy -- -D warnings && cargo test && cargo build
+$ eslint .
+$ vitest run
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90mD:/Develop/wt/InsightForge/01-workspace-foundation[39m
+
+ [32m✓[39m src/i18n/i18n.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+[2m   Start at [22m 16:28:32
+[2m   Duration [22m 669ms[2m (transform 109ms, setup 0ms, import 242ms, tests 11ms, environment 0ms)[22m
+
+$ vite build
+[36mvite v8.2.2 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 45 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.40 kB │ gzip:  0.27 kB
+dist/assets/index-CmuUx5l2.css    0.69 kB │ gzip:  0.36 kB
+dist/assets/index-Cb8gOPOM.js   240.71 kB │ gzip: 76.18 kB
+
+[32m✓ built in 228ms[39m
+    Checking insightforge-desktop v0.1.0 (D:\Develop\wt\InsightForge\01-workspace-foundation\src-tauri)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.25s
+   Compiling insightforge-desktop v0.1.0 (D:\Develop\wt\InsightForge\01-workspace-foundation\src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.61s
+     Running unittests src\lib.rs (target\debug\deps\insightforge_core-f3badccaa8033196.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\repository.rs (target\debug\deps\repository-43b07dc4b2600850.exe)
+
+running 9 tests
+test linked_sqlite_meets_the_specified_minimum_version ... ok
+test migrator_rejects_migration_versions_that_do_not_strictly_increase ... ok
+test open_defaults_to_wal_journal_mode ... ok
+test open_creates_sqlite_file_at_requested_path ... ok
+test queue_keeps_accepting_writes_after_a_failed_write ... ok
+test open_applies_pending_migrations_and_records_versions ... ok
+test reopening_database_does_not_reapply_finished_migrations ... ok
+test failed_write_rolls_back_partial_work ... ok
+test concurrent_writes_serialize_through_the_single_write_queue ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.19s
+
+     Running unittests src\lib.rs (target\debug\deps\insightforge_desktop-592cf5d102959d4f.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (target\debug\deps\insightforge_desktop-93a451119e655d4e.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests insightforge_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests insightforge_desktop
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.38s

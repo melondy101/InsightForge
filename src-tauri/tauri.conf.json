@@ -1,13 +1,13 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "InsightForge",
-  "version": "0.3.9",
+  "version": "0.1.0",
   "identifier": "app.insightforge.desktop",
   "build": {
-    "beforeBuildCommand": "npm run desktop:export",
-    "beforeDevCommand": "npm run dev",
-    "frontendDist": "../out",
-    "devUrl": "http://localhost:3000"
+    "beforeDevCommand": "bun run dev",
+    "beforeBuildCommand": "bun run build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
   },
   "app": {
     "windows": [
@@ -29,15 +29,15 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "category": "Productivity",
+    "shortDescription": "本地优先的反代写写作工作台",
+    "longDescription": "织知 InsightForge —— 本地优先的桌面反代写写作工作台：知识库在你自己的文件夹里，AI 只递问题与证据，血肉由你亲手补。",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ],
-    "category": "Productivity",
-    "shortDescription": "把碎片盘活成文章的桌面写作客户端",
-    "longDescription": "InsightForge / 智智 —— 采集碎片、发现选题缺口、AI 辅助成文，全程 BYOK 前端直连，数据留在本地。"
+    ]
   }
 }
