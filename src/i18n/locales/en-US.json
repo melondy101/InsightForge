@@ -4,5 +4,55 @@
     "sidebar": "Sidebar",
     "editor": "Editor",
     "evidenceShelf": "Evidence shelf"
+  },
+  "sources": {
+    "nav": {
+      "workspace": "Workspace",
+      "sources": "Sources"
+    },
+    "title": "Sources",
+    "addTitle": "Add a source",
+    "nameLabel": "Name",
+    "namePlaceholder": "e.g. My notes",
+    "pathLabel": "Knowledge folder",
+    "pathPlaceholder": "Paste a folder path, or click Pick",
+    "pickDirectory": "Pick folder…",
+    "addButton": "Add and index",
+    "defaultIgnoreTitle": "Default ignore rules",
+    "listTitle": "Your sources",
+    "empty": "No sources yet. Add your first knowledge folder.",
+    "columnName": "Name",
+    "columnPath": "Path",
+    "columnStatus": "Status",
+    "columnFiles": "Files",
+    "columnProgress": "Progress",
+    "columnActions": "Actions",
+    "status": {
+      "idle": "Idle",
+      "indexing": "Indexing",
+      "paused": "Paused"
+    },
+    "progress": "Indexing {{processed}}/{{total}}",
+    "sync": "Sync",
+    "pause": "Pause",
+    "resume": "Resume",
+    "remove": "Remove",
+    "removeConfirm": "Removing a source only clears index records and never touches your files. Remove it?",
+    "dismissError": "Got it",
+    "error": {
+      "invalid_name": "Name must not be blank",
+      "duplicate_root": "This folder is already a source",
+      "source_not_found": "Source not found or already removed",
+      "source_paused": "Source is paused; resume it before syncing",
+      "already_indexing": "This source is already indexing; try again later",
+      "invalid_root": "Folder does not exist or is not accessible",
+      "root_not_a_directory": "The selected path is not a folder",
+      "invalid_ignore_glob": "Ignore rule is invalid",
+      "invalid_rel_path": "Invalid path detected and rejected",
+      "repository_error": "Database operation failed",
+      "io_error": "Failed to read file",
+      "cancelled": "Operation cancelled",
+      "generic": "Operation failed: {{message}}"
+    }
   }
 }

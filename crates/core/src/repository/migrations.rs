@@ -1,8 +1,8 @@
 //! 版本化迁移框架。
 //!
-//! - 领域表迁移按票据预分配编号：02 号票占用 `0001–0009`，06 号票占用
-//!   `0010–0019`，09 号票占用 `0020–0029`。
-//! - 01 号票只交付框架本身：[`MIGRATIONS`] 列表为空，不写任何领域表迁移。
+//! - 领域表迁移按票据预分配编号：02 号票占用 `0001–0009`（已交付
+//!   `0001 knowledge_source`、`0002 source_file`、`0003 fragment + fragment_fts`），
+//!   06 号票占用 `0010–0019`，09 号票占用 `0020–0029`。
 //! - 迁移版本记录表 [`SCHEMA_MIGRATIONS_SQL`] 是框架簿记，**不是**编号迁移，
 //!   不占用任何领域迁移编号。
 
@@ -30,8 +30,60 @@ pub struct Migration {
 
 /// 应用当前的全部领域迁移列表。
 ///
-/// 01 号票不交付任何领域迁移；`0001–0029` 已预留给 02/06/09 号票。
-pub const MIGRATIONS: &[Migration] = &[];
+/// 编号预分配：02 号票 `0001–0009`（已用 `0001–0003`），06 号票 `0010–0019`，
+/// 09 号票 `0020–0029`；未用完的编号留空。
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "create_knowledge_source",
+        sql: "CREATE TABLE knowledge_source (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    root_path TEXT NOT NULL UNIQUE,
+    paused INTEGER NOT NULL DEFAULT 0 CHECK (paused IN (0, 1)),
+    ignore_globs TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    last_synced_at TEXT
+)",
+    },
+    Migration {
+        version: 2,
+        name: "create_source_file",
+        sql: "CREATE TABLE source_file (
+    id INTEGER PRIMARY KEY,
+    source_id TEXT NOT NULL REFERENCES knowledge_source(id),
+    rel_path TEXT NOT NULL,
+    file_identity TEXT,
+    content_hash TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    mtime_ms INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'missing')),
+    UNIQUE (source_id, rel_path)
+);
+CREATE INDEX idx_source_file_source ON source_file(source_id)",
+    },
+    Migration {
+        version: 3,
+        name: "create_fragment_and_fts",
+        sql: "CREATE TABLE fragment (
+    id INTEGER PRIMARY KEY,
+    source_file_id INTEGER NOT NULL REFERENCES source_file(id),
+    ordinal INTEGER NOT NULL,
+    heading_path TEXT NOT NULL DEFAULT '',
+    start_line INTEGER NOT NULL,
+    end_line INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    UNIQUE (source_file_id, ordinal)
+);
+CREATE INDEX idx_fragment_file ON fragment(source_file_id);
+CREATE VIRTUAL TABLE fragment_fts USING fts5(
+    fragment_id UNINDEXED,
+    text,
+    tokenize = 'trigram'
+)",
+    },
+];
 
 /// 版本化迁移执行器：校验编号后把未应用的迁移按序应用到数据库。
 #[derive(Debug, Clone)]

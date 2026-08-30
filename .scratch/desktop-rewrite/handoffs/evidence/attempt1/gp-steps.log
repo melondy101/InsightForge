@@ -1,0 +1,12 @@
+[gp] 2026-08-30T10:26:46.553Z step-01:wait -> waited 1500ms
+[gp] 2026-08-30T10:26:46.618Z step-02:screenshot -> saved D:\Develop\wt\InsightForge\02-source-add-first-index\.scratch\desktop-rewrite\handoffs\evidence\evidence\gp-01-workspace.png
+[gp] 2026-08-30T10:26:46.619Z step-03:eval -> "织知 InsightForge" (expected 织知 InsightForge) (窗口壳已加载)
+[gp] 2026-08-30T10:26:51.636Z step-04:click[data-el=nav-sources] -> {"clicked":true,"dialog":"no-dialog"} (点击侧栏「来源管理」)
+[gp] 2026-08-30T10:26:51.942Z step-05:wait -> waited 300ms
+[gp] 2026-08-30T10:26:51.943Z step-06:eval -> true (expected true) (来源管理视图出现)
+[gp] 2026-08-30T10:26:51.944Z step-07:eval -> "默认忽略规则：.git、node_modules" (默认忽略规则展示)
+[gp] 2026-08-30T10:26:51.994Z step-08:screenshot -> saved D:\Develop\wt\InsightForge\02-source-add-first-index\.scratch\desktop-rewrite\handoffs\evidence\evidence\gp-02-sources-view.png
+[gp] 2026-08-30T10:26:56.998Z step-09:click[data-el=sources-add-pick] -> {"clicked":true,"dialog":"no-dialog"} (打开系统目录选择对话框（真实 dialog 插件）)
+[gp] 2026-08-30T10:26:58.207Z step-10:wait -> waited 1200ms
+[gp] 2026-08-30T10:26:58.259Z step-11:screenshot -> saved D:\Develop\wt\InsightForge\02-source-add-first-index\.scratch\desktop-rewrite\handoffs\evidence\evidence\gp-03-directory-dialog.png
+[gp] 2026-08-30T10:26:58.261Z step-12:eval -> "BODY" (对话框焦点在原生弹层（页面内 activeElement 通常是 body）)

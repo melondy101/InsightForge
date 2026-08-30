@@ -1,0 +1,36 @@
+[gp2] 2026-08-30T10:58:14.354Z step-01:wait -> waited 2000ms
+[gp2] 2026-08-30T10:58:14.356Z step-02:eval -> "织知 InsightForge" (expected 织知 InsightForge) (窗口壳已加载)
+[gp2] 2026-08-30T10:58:19.393Z step-03:click[data-el=nav-sources] -> {"clicked":true,"dialog":"no-dialog"} (侧栏进入「来源管理」)
+[gp2] 2026-08-30T10:58:19.792Z step-04:wait -> waited 400ms
+[gp2] 2026-08-30T10:58:19.793Z step-05:eval -> true (expected true) (来源管理视图出现)
+[gp2] 2026-08-30T10:58:19.793Z step-06:eval -> "默认忽略规则：.git、node_modules、t" (默认忽略规则展示（预期含 .git、node_modules）)
+[gp2] 2026-08-30T10:58:19.861Z step-07:screenshot -> saved D:\Develop\wt\InsightForge\02-source-add-first-index\.scratch\desktop-rewrite\handoffs\evidence\gp2-01-sources-view.png
+[gp2] 2026-08-30T10:58:19.876Z step-08:type[data-el=sources-add-name] -> filled, actual value="金路径笔记" (expected "金路径笔记")
+[gp2] 2026-08-30T10:58:19.886Z step-09:type[data-el=sources-add-path] -> filled, actual value="C:/Users/20145/AppData/Local/Temp/if02-gp-kb" (expected "C:/Users/20145/AppData/Local/Temp/if02-gp-kb")
+[gp2] 2026-08-30T10:58:19.887Z step-10:eval -> "{\"name\":\"金路径笔记\",\"path\":\"C:/Users/20145/AppData/Local/Temp/if02-gp-kb\"}" (确认两个输入框实际值)
+[gp2] 2026-08-30T10:58:24.930Z step-11:click[data-el=sources-add-submit] -> {"clicked":true,"dialog":"no-dialog"} (点击「添加并索引」)
+[gp2] 2026-08-30T10:58:24.931Z step-12:waitFor -> true (truthy=true) (进度条/索引中状态出现（事件驱动）)
+[gp2] 2026-08-30T10:58:24.932Z step-13:eval -> "{\"status\":\"索引中\",\"progress\":\"索引进度 444/620\"}" (索引进行中的状态与进度文本（预期 索引进度 N/620）)
+[gp2] 2026-08-30T10:58:24.983Z step-14:screenshot -> saved D:\Develop\wt\InsightForge\02-source-add-first-index\.scratch\desktop-rewrite\handoffs\evidence\gp2-02-indexing-progress.png
+[gp2] 2026-08-30T10:58:26.747Z step-15:waitFor -> true (truthy=true) (等待补扫完成回到空闲)
+[gp2] 2026-08-30T10:58:26.749Z step-16:eval -> "620" (expected 620) (补扫完成后文件数（620 = 600 md + 20 txt；噪声被默认忽略）)
+[gp2] 2026-08-30T10:58:26.749Z step-17:eval -> true (expected true) (Completed 事件后进度条消失)
+[gp2] 2026-08-30T10:58:26.800Z step-18:screenshot -> saved D:\Develop\wt\InsightForge\02-source-add-first-index\.scratch\desktop-rewrite\handoffs\evidence\gp2-03-indexed-idle.png
+[gp2] 2026-08-30T10:58:31.810Z step-19:click[data-el=sources-pause-btn] -> {"clicked":true,"dialog":"no-dialog"} (暂停来源)
+[gp2] 2026-08-30T10:58:32.311Z step-20:wait -> waited 500ms
+[gp2] 2026-08-30T10:58:32.314Z step-21:eval -> "已暂停" (expected 已暂停) (暂停后状态)
+[gp2] 2026-08-30T10:58:32.363Z step-22:screenshot -> saved D:\Develop\wt\InsightForge\02-source-add-first-index\.scratch\desktop-rewrite\handoffs\evidence\gp2-04-paused.png
+[gp2] 2026-08-30T10:58:37.432Z step-23:click[data-el=sources-resume-btn] -> {"clicked":true,"dialog":"no-dialog"} (恢复来源)
+[gp2] 2026-08-30T10:58:37.950Z step-24:wait -> waited 500ms
+[gp2] 2026-08-30T10:58:37.951Z step-25:eval -> "空闲" (expected 空闲) (恢复后状态)
+[gp2] 2026-08-30T10:58:43.017Z step-26:click[data-el=sources-sync-btn] -> {"clicked":true,"dialog":"no-dialog"} (手动同步（未变文件应快速跳过）)
+[gp2] 2026-08-30T10:58:43.018Z step-27:waitFor -> true (truthy=true) (同步后回到空闲)
+[gp2] 2026-08-30T10:58:43.019Z step-28:eval -> "620" (expected 620) (重复同步后文件数不变)
+[gp2] 2026-08-30T10:58:48.030Z step-29:click[data-el=sources-remove-btn] -> {"clicked":true,"dialog":"no-dialog"} (移除来源（window.confirm 由驱动自动接受）)
+[gp2] 2026-08-30T10:58:48.852Z step-30:wait -> waited 800ms
+[gp2] 2026-08-30T10:58:48.853Z step-31:eval -> true (expected true) (移除后列表为空)
+[gp2] 2026-08-30T10:58:48.900Z step-32:screenshot -> saved D:\Develop\wt\InsightForge\02-source-add-first-index\.scratch\desktop-rewrite\handoffs\evidence\gp2-05-removed-empty.png
+[gp2] 2026-08-30T10:58:53.921Z step-33:click[data-el=sources-add-pick] -> {"clicked":true,"dialog":"no-dialog"} (打开系统目录选择对话框（原生窗口）)
+[gp2] 2026-08-30T10:58:55.130Z step-34:wait -> waited 1200ms
+[gp2] 2026-08-30T10:58:55.181Z step-35:screenshot -> saved D:\Develop\wt\InsightForge\02-source-add-first-index\.scratch\desktop-rewrite\handoffs\evidence\gp2-06-dialog-open-page.png
+[gp2] 2026-08-30T10:58:55.182Z step-36:eval -> "INPUT" (原生对话框持有焦点，页面内 activeElement 通常为 body)

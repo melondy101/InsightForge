@@ -30,3 +30,14 @@ it('切换到 en-US 时呈现英文占位文案', () => {
 it('zh-CN 与 en-US 资源树保持键一致', () => {
   expect(flattenKeys(enUS)).toEqual(flattenKeys(zhCN));
 });
+
+it('来源管理文案在两种语言下可用', () => {
+  i18n.changeLanguage('zh-CN');
+  expect(i18n.t('sources.nav.sources')).toBe('来源管理');
+  expect(i18n.t('sources.status.indexing')).toBe('索引中');
+  expect(i18n.t('sources.error.source_paused')).toBe('来源已暂停，恢复后才能同步');
+  i18n.changeLanguage('en-US');
+  expect(i18n.t('sources.nav.sources')).toBe('Sources');
+  expect(i18n.t('sources.status.indexing')).toBe('Indexing');
+  expect(i18n.t('sources.error.source_paused')).toBe('Source is paused; resume it before syncing');
+});

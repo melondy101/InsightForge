@@ -3,7 +3,8 @@ import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'target/**', 'src-tauri/**', 'node_modules/**'],
+    // .scratch 是票据工作/证据目录（handoff 驱动脚本等），非产品代码；tsc 的 include 同样不含它。
+    ignores: ['dist/**', 'target/**', 'src-tauri/**', 'node_modules/**', '.scratch/**'],
   },
   ...tseslint.configs.recommended,
   {
