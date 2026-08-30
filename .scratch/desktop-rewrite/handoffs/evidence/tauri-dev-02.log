@@ -1,0 +1,15 @@
+$ tauri dev
+     Running BeforeDevCommand (`bun run dev`)
+$ vite
+
+  [32m[1mVITE[22m v8.2.2[39m  [2mready in [0m[1m308[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m1420[22m/[39m
+[2m  [32m➜[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
+     Running DevCommand (`cargo  run --no-default-features --color always --`)
+        Info Watching D:\Develop\wt\InsightForge\02-source-add-first-index\src-tauri for changes...
+        Info Watching D:\Develop\wt\InsightForge\02-source-add-first-index\crates\core for changes...
+[1m[92m    Finished[0m `dev` profile [unoptimized + debuginfo] target(s) in 0.71s
+[1m[92m     Running[0m `D:\Develop\wt\InsightForge\02-source-add-first-index\target\debug\insightforge-desktop.exe`
+[insightforge] database ready: path=C:\Users\20145\AppData\Roaming\app.insightforge.desktop\insightforge.sqlite sqlite=3.53.2 journal_mode=wal applied_migrations=3
+TAURI_DEV_EXIT=0
