@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — 桌面工作区骨架与 SQLite 地基
 
-**Status:** ready-for-agent
+**Status:** done (merged 787bc76)
 
 - [ ] 三栏布局可调，正文宽度下限 35%；编辑器实现藏在 `EditorAdapter` 适配层后
 - [ ] Markdown round-trip 语料测试全绿：打开 → 不做任何修改 → 保存，文件逐字节一致
@@ -19,3 +19,4 @@
 - IME 验证（M0 第 1 项）：WebView2 CDP 组合模拟（`Input.imeSetComposition` + `Input.insertText` 提交）与直插共 570 字混排长文，`getValue()` 逐字符相等、光标停在文末；残余风险（真实 OS IME 键盘预处理未覆盖）已在 handoff 声明，建议 15 号票真实 IME 复核。
 - Golden Path 34 步全过（三栏/拖拽 35% 触线/IME/提取冒烟/02 来源管理往返），截图 5 张与日志在 `handoffs/evidence/05-*`；干净退出另行验证（无调试口 1 秒内退出）。
 - Handoff: `.scratch/desktop-rewrite/handoffs/05-handoff.md`；commits b206feb → 18da535 → 3b5d28b → 44ca55d → e132f9b + 本次证据提交。
+- 2026-08-30 Orchestrator：Builder attempt 1 一次交付。Reviewer 独立复验 PASS（P0/P1=0；round-trip 语料经变异检验证实真实有效，实测 18 组——handoff 声称 19 系计数偏差，以 18 为准；P2×2 + P3×3 非阻塞）。P2-1 极窄窗口侧栏负宽度钳制与 P2-2 openDocument 撤销到空文档语义作为 06 号票修复项/设计输入随单携带。合并条件①–⑥全满足，--no-ff 合入 787bc76，集成 8 门禁回归全绿。

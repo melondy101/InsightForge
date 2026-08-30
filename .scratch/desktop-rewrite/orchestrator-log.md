@@ -18,3 +18,10 @@
 - 合并：c5e0188 --no-ff；集成 8 门禁回归全绿。
 - 后续跟进（P2，非阻塞）：gp-driver 加 vite-connected 守卫（05/03 做 GP 时顺手）；SourcesView busy；sources.nav.workspace 键；sync/remove NotFound 测试。
 - 波次决定：W2 串行执行 02→05→08（三票共享命令注册与壳布局集成点，串行避免冲突）；05 先于 08 因其体量更大且解锁 06→12→13→14 发布链。
+
+### Ticket 05 · 三栏工作台与 Markdown 编辑器（2026-08-30）
+- Builder attempt 1（agent_204f01f3）：6 commit（b206feb..790852c）。EditorAdapter 窄接口 + CodeMirror 6；round-trip 语料逐字节断言（BOM/EOL 还原策略，TDD 红灯抓到 setValue 重设基线缺陷）；提取纯函数 18 测；三栏 35% 硬钳制；CDP imeSetComposition 真实组合输入 570 字验证（残余风险：OS 级 IME 未覆盖，15 号票复核——已在 handoff 声明）。
+- 主控独立复验：8 门禁全绿（Rust 48 不变、前端 84）；范围干净、01/02 证据零改动。
+- Reviewer（agent_3dbaf602）：PASS。亲手加 4 个新语料用例 + 变异检验（禁用 getValue 快路径→混合行尾用例立即红）；对称方向 35% 约束补测；Ctrl+Z 撤销链逐级验证。P2：clampPaneWidths 负侧栏宽度（真实窗口实证、700px 自愈）、openDocument 可被撤销到空文档（当前不可达，06 接线时处理）、语料计数 19→实为 18。P3：handoff 归因小误、建议语料加栅栏内 # 行。
+- 合并：787bc76 --no-ff；集成 8 门禁回归全绿。
+- 随单携带至 06：P2-1 负宽度钳制修复+边界测试；P2-2 openDocument 重建 state/isolate history 设计决定。
