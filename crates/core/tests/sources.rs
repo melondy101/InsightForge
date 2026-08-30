@@ -520,3 +520,238 @@ fn remove_while_indexing_waits_then_cleans() {
         .unwrap();
     assert_eq!(sources_left, 0, "移除后不得残留来源记录");
 }
+
+// ---------------------------------------------------------------------------
+// 切片 7：只读边界（CONTEXT.md 铁律 1 / M0 第 4 项）——源文件永不被修改、
+// 逃逸与 traversal 用例拒绝、ignore 规则生效。
+// ---------------------------------------------------------------------------
+
+#[test]
+fn backfill_and_sync_never_modify_source_files() {
+    let h = harness();
+    let root = h.db_dir.path().join("kb");
+    write_file(
+        &root,
+        "笔记.md",
+        "# 架构\n\n本地优先的核心思想。\n\n## 边界\n\n知识库只读。\n",
+    );
+    write_file(
+        &root,
+        "plain.txt",
+        "第一段，一些中文内容。\n\n第二段，更多内容。\n",
+    );
+
+    let before: Vec<(String, String, std::fs::Metadata)> = ["笔记.md", "plain.txt"]
+        .iter()
+        .map(|rel| {
+            let path = root.join(rel);
+            (
+                rel.to_string(),
+                sha256_of_file(&path),
+                fs::metadata(&path).unwrap(),
+            )
+        })
+        .collect();
+
+    let summary = h
+        .sources
+        .add(&root, "kb", None)
+        .expect("add should succeed");
+    wait_until_idle(&h.sources, &summary.id);
+    h.sources.sync(&summary.id).expect("sync 1");
+    wait_until_idle(&h.sources, &summary.id);
+    h.sources.sync(&summary.id).expect("sync 2");
+    wait_until_idle(&h.sources, &summary.id);
+
+    for (rel, hash_before, meta_before) in &before {
+        let path = root.join(rel);
+        let meta_after = fs::metadata(&path).unwrap();
+        assert_eq!(
+            sha256_of_file(&path),
+            *hash_before,
+            "{rel} 的内容 hash 前后必须不变"
+        );
+        assert_eq!(
+            meta_after.modified().unwrap(),
+            meta_before.modified().unwrap(),
+            "{rel} 的 mtime 前后必须不变（未发生任何写入）"
+        );
+        assert_eq!(
+            meta_after.len(),
+            meta_before.len(),
+            "{rel} 的大小前后必须不变"
+        );
+    }
+}
+
+#[test]
+fn junction_escape_outside_root_is_never_indexed() {
+    let h = harness();
+    let base = h.db_dir.path();
+    let root = base.join("kb");
+    let outside = base.join("outside");
+    write_file(&root, "keep.md", "# 保留\n\n正常内容。\n");
+    write_file(
+        &outside,
+        "escape.md",
+        "# 逃逸标记\n\n这段内容在知识库根目录之外，绝不能被索引。\n",
+    );
+    // std 的 junction API 仍 unstable：经 mklink /J 创建目录联接（无需特权）。
+    let link = root.join("sublink");
+    let output = std::process::Command::new("cmd")
+        .args(["/C", "mklink", "/J"])
+        .arg(&link)
+        .arg(&outside)
+        .output()
+        .expect("spawn mklink");
+    assert!(
+        output.status.success(),
+        "mklink /J must succeed without privileges: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let summary = h
+        .sources
+        .add(&root, "kb", None)
+        .expect("add should succeed");
+    let idle = wait_until_idle(&h.sources, &summary.id);
+    assert_eq!(idle.file_count, 1, "逃逸 junction 内的文件绝不能进入索引");
+
+    let inspector =
+        rusqlite::Connection::open(h.db_dir.path().join("insightforge.sqlite")).unwrap();
+    let leaked: i64 = inspector
+        .query_row(
+            "SELECT COUNT(*) FROM fragment_fts WHERE fragment_fts MATCH '逃逸标记'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(leaked, 0, "根目录之外的内容绝不能被检索到");
+}
+
+#[test]
+fn symlink_file_escape_outside_root_is_rejected() {
+    let h = harness();
+    let base = h.db_dir.path();
+    let root = base.join("kb");
+    let outside = base.join("outside");
+    write_file(&root, "keep.md", "# 保留\n\n正常内容。\n");
+    write_file(&outside, "escape.md", "逃逸内容标记 ABCDEF。\n");
+
+    let link = root.join("escape.md");
+    if let Err(err) = std::os::windows::fs::symlink_file(outside.join("escape.md"), &link) {
+        // 本机/CI 未授予 SeCreateSymbolicLinkPrivilege 时记录跳过；
+        // 目录逃逸由 junction_escape_outside_root_is_never_indexed 提供可执行证据，
+        // 两者共用同一 stays_within_root 边界检查。
+        eprintln!("SKIP symlink-file case (no privilege): {err}");
+        return;
+    }
+
+    let summary = h
+        .sources
+        .add(&root, "kb", None)
+        .expect("add should succeed");
+    let idle = wait_until_idle(&h.sources, &summary.id);
+    assert_eq!(idle.file_count, 1, "逃逸的 symlink 文件不能进入索引");
+    let inspector =
+        rusqlite::Connection::open(h.db_dir.path().join("insightforge.sqlite")).unwrap();
+    let leaked: i64 = inspector
+        .query_row(
+            "SELECT COUNT(*) FROM fragment_fts WHERE fragment_fts MATCH 'ABCDEF'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(leaked, 0);
+}
+
+#[test]
+fn tampered_traversal_rel_path_is_rejected_on_sync() {
+    let (h, root, id) = seeded_source();
+    // 根目录之外的「机密」文件：即使数据库记录被篡改也绝不能被读到。
+    let secret = h.db_dir.path().join("secret.md");
+    fs::write(&secret, "根目录之外的机密内容 ZZYYXX。").unwrap();
+
+    // 直接篡改数据库（模拟被污染的 source_file 记录）。
+    let inspector =
+        rusqlite::Connection::open(h.db_dir.path().join("insightforge.sqlite")).unwrap();
+    inspector
+        .execute(
+            "INSERT INTO source_file (source_id, rel_path, content_hash, size, mtime_ms, status)
+             VALUES ((SELECT id FROM knowledge_source LIMIT 1), '../secret.md', 'tampered', 0, 0, 'active')",
+            [],
+        )
+        .unwrap();
+    drop(inspector);
+    assert!(root.join("../secret.md").exists() || secret.exists());
+
+    h.sources
+        .sync(&id)
+        .expect("补扫遇到 traversal 记录必须拒绝而非读取");
+    wait_until_idle(&h.sources, &id);
+
+    let inspector =
+        rusqlite::Connection::open(h.db_dir.path().join("insightforge.sqlite")).unwrap();
+    let leaked: i64 = inspector
+        .query_row(
+            "SELECT COUNT(*) FROM fragment_fts WHERE fragment_fts MATCH 'ZZYYXX'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(leaked, 0, "path traversal 记录绝不能导致读取根外文件");
+    let tampered_fragments: i64 = inspector
+        .query_row(
+            "SELECT COUNT(*) FROM fragment WHERE source_file_id IN
+                (SELECT id FROM source_file WHERE rel_path = '../secret.md')",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        tampered_fragments, 0,
+        "被篡改的 traversal 记录不得挂任何片段"
+    );
+}
+
+#[test]
+fn default_ignore_globs_exclude_noise_files() {
+    let h = harness();
+    let root = h.db_dir.path().join("kb");
+    write_file(&root, "keep.md", "# 保留\n正文。\n");
+    write_file(&root, "node_modules/pkg/readme.md", "噪声。");
+    write_file(&root, "sub/cache.tmp", "噪声。");
+    write_file(&root, ".git/config.md", "噪声。");
+
+    let summary = h
+        .sources
+        .add(&root, "kb", None)
+        .expect("add should succeed");
+    let idle = wait_until_idle(&h.sources, &summary.id);
+    assert_eq!(idle.file_count, 1, "默认忽略规则必须排除噪声文件");
+}
+
+#[test]
+fn custom_ignore_globs_replace_defaults_and_are_honored() {
+    let h = harness();
+    let root = h.db_dir.path().join("kb");
+    write_file(&root, "keep.md", "# 保留\n正文。\n");
+    write_file(&root, "secret.md", "机密。");
+    write_file(&root, "build/extra.md", "默认规则下会被 build 忽略。");
+
+    let summary = h
+        .sources
+        .add(&root, "kb", Some(vec!["secret*".to_string()]))
+        .expect("add with custom globs should succeed");
+    let idle = wait_until_idle(&h.sources, &summary.id);
+
+    assert_eq!(
+        idle.ignore_globs,
+        vec!["secret*".to_string()],
+        "自定义规则必须替换默认规则"
+    );
+    assert_eq!(
+        idle.file_count, 2,
+        "secret.md 被忽略；默认的 build 忽略不再生效（build/extra.md 被索引）"
+    );
+}
