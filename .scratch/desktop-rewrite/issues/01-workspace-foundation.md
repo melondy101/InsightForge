@@ -11,3 +11,6 @@
 - [ ] 旧 Web 应用代码已移除：旧构建/测试脚本与依赖清理干净，文档、ADR、CONTEXT.md、调研存档完整保留
 - [ ] CI 编译 Rust core 并运行平台无关测试，全绿
 - [ ] 「提交前三绿」约定更新为新栈等价物（Rust 测试 + 前端类型检查 + lint）
+
+## Comments
+- 2026-08-30 Builder attempt 1：handoff 见 .scratch/desktop-rewrite/handoffs/01-handoff.md；commit 50667a0（移除旧 Web 应用）/ 5716f59（新前端工作区）/ 84dde72（Rust core 地基）/ edbb7ed（Tauri 2 壳建库）/ 2012921（门禁与文档）/ 6a129ba（lint 修复）+ handoff 提交（HEAD，见 git log 末条）。
