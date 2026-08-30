@@ -2,6 +2,7 @@
 //!
 //! - 领域表迁移按票据预分配编号：02 号票占用 `0001–0009`（已交付
 //!   `0001 knowledge_source`、`0002 source_file`、`0003 fragment + fragment_fts`），
+//!   08 号票经主控授权使用 `0004`（`app_setting`，非敏感设置 KV；其余编号留空），
 //!   06 号票占用 `0010–0019`，09 号票占用 `0020–0029`。
 //! - 迁移版本记录表 [`SCHEMA_MIGRATIONS_SQL`] 是框架簿记，**不是**编号迁移，
 //!   不占用任何领域迁移编号。
@@ -30,8 +31,8 @@ pub struct Migration {
 
 /// 应用当前的全部领域迁移列表。
 ///
-/// 编号预分配：02 号票 `0001–0009`（已用 `0001–0003`），06 号票 `0010–0019`，
-/// 09 号票 `0020–0029`；未用完的编号留空。
+/// 编号预分配：02 号票 `0001–0009`（已用 `0001–0003`），08 号票经主控授权
+/// 使用 `0004`，06 号票 `0010–0019`，09 号票 `0020–0029`；未用完的编号留空。
 pub const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 1,
@@ -81,6 +82,17 @@ CREATE VIRTUAL TABLE fragment_fts USING fts5(
     fragment_id UNINDEXED,
     text,
     tokenize = 'trigram'
+)",
+    },
+    Migration {
+        version: 4,
+        name: "create_app_setting",
+        // 08 号票：非敏感设置的 KV 表（AI base URL / model / 总开关）。
+        // API Key 是敏感凭据，只进 OS 凭据库（secrets 模块），绝不进本表。
+        sql: "CREATE TABLE app_setting (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 )",
     },
 ];

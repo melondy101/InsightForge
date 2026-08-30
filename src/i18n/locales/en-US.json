@@ -63,5 +63,56 @@
       "cancelled": "Operation cancelled",
       "generic": "Operation failed: {{message}}"
     }
+  },
+  "settings": {
+    "nav": {
+      "settings": "Settings"
+    },
+    "title": "Settings",
+    "dismissError": "Got it",
+    "aiSectionTitle": "AI (Bring Your Own Key · OpenAI compatible)",
+    "baseUrlLabel": "API Base URL",
+    "baseUrlPlaceholder": "e.g. https://api.openai.com/v1",
+    "modelLabel": "Model",
+    "modelPlaceholder": "e.g. gpt-4o-mini",
+    "apiKeyLabel": "API Key",
+    "apiKeyPlaceholder": "Paste your API key (stored in the OS credential store, never shown again)",
+    "apiKeyPlaceholderConfigured": "Stored in the OS credential store; enter a new key to replace it",
+    "apiKeyConfigured": "Configured (stored in OS credential store)",
+    "apiKeyNotConfigured": "Not configured",
+    "clearKeyButton": "Clear key",
+    "saveButton": "Save",
+    "saved": "Saved",
+    "testButton": "Test connection",
+    "testing": "Testing…",
+    "testResult": {
+      "ok": "Connection OK",
+      "failStatus": "Connection failed (HTTP {{status}})",
+      "failTransport": "Connection failed: {{message}}",
+      "detail": "Detail: {{detail}}"
+    },
+    "enabledLabel": "AI master switch",
+    "enabledHint": "When off, every AI command reports unavailable and everything else works untouched.",
+    "aiStatus": {
+      "on": "AI is on",
+      "off": "AI is off",
+      "incomplete": "AI is on, but the configuration is incomplete"
+    },
+    "sampleButton": "Send a sample AI request",
+    "sampleReply": "Sample reply: {{content}}",
+    "error": {
+      "ai_disabled": "The AI master switch is off",
+      "ai_no_base_url": "Base URL is not configured yet",
+      "ai_no_model": "Model is not configured yet",
+      "ai_no_api_key": "API Key is not configured yet",
+      "invalid_base_url": "Invalid Base URL (must be a full http:// or https:// URL)",
+      "invalid_api_key": "API Key must not be blank",
+      "ai_http_status": "AI endpoint call failed: {{message}}",
+      "invalid_response": "The AI response could not be parsed",
+      "secret_store_error": "OS credential store operation failed",
+      "repository_error": "Database operation failed",
+      "client_error": "Connection failed: {{message}}",
+      "generic": "Operation failed: {{message}}"
+    }
   }
 }

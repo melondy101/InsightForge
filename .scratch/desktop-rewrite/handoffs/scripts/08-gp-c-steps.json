@@ -1,0 +1,22 @@
+[
+  { "action": "log", "note": "阶段 C：来源管理/工作台不受影响 → 重开设置显示已配置 → 清除 Key（清理凭据库）" },
+  { "action": "click", "selector": "[data-el=nav-sources]", "note": "切到来源管理（02 回归）" },
+  { "action": "wait", "ms": 400 },
+  { "action": "eval", "expr": "!!document.querySelector('[data-el=sources-view]')", "expect": "true", "note": "来源管理视图正常渲染——AI 关闭不影响其余功能" },
+  { "action": "screenshot", "file": "evidence/08-gp-07-sources-unaffected.png", "note": "来源管理不受影响" },
+  { "action": "click", "selector": "[data-el=nav-workspace]", "note": "切回工作台（05 回归）" },
+  { "action": "wait", "ms": 400 },
+  { "action": "eval", "expr": "!!document.querySelector('[data-el=workspace-panes]') && !!document.querySelector('.cm-content')", "expect": "true", "note": "三栏工作台与编辑器正常渲染——其余功能不受影响" },
+  { "action": "screenshot", "file": "evidence/08-gp-08-workspace-unaffected.png", "note": "工作台不受影响" },
+  { "action": "click", "selector": "[data-el=nav-settings]", "note": "重开设置（验证已配置态持久化）" },
+  { "action": "wait", "ms": 500 },
+  { "action": "eval", "expr": "document.querySelector('[data-el=settings-key-configured]')?.textContent ?? null", "expect": "已配置（存于系统凭据库）", "note": "重开设置显示「已配置」而非明文" },
+  { "action": "eval", "expr": "(()=>{const k=document.querySelector('[data-el=settings-ai-key]');return {type:k?.type ?? null,value:k?.value ?? null}})()", "expect": "type=password, value 空", "note": "Key 框仍为空 password 框——无任何明文回显" },
+  { "action": "eval", "expr": "document.querySelector('[data-el=settings-ai-base]')?.value ?? null", "expect": "http://127.0.0.1:18787/v1", "note": "base 持久化回读" },
+  { "action": "eval", "expr": "document.querySelector('[data-el=settings-ai-status]')?.textContent ?? null", "expect": "AI 已关闭", "note": "总开关状态持久化为关闭" },
+  { "action": "screenshot", "file": "evidence/08-gp-09-reopen-configured.png", "note": "重开设置：已配置徽标（无明文）" },
+  { "action": "click", "selector": "[data-el=settings-key-clear]", "note": "清除 Key（同时清理凭据库中的假 key）" },
+  { "action": "wait", "ms": 600 },
+  { "action": "eval", "expr": "document.querySelector('[data-el=settings-key-missing]')?.textContent ?? null", "expect": "未配置", "note": "清除后徽标回到未配置（凭据库条目删除）" },
+  { "action": "screenshot", "file": "evidence/08-gp-10-key-cleared.png", "note": "清除 Key 后" }
+]

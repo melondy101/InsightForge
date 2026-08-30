@@ -63,5 +63,56 @@
       "cancelled": "操作已取消",
       "generic": "操作失败：{{message}}"
     }
+  },
+  "settings": {
+    "nav": {
+      "settings": "设置"
+    },
+    "title": "设置",
+    "dismissError": "知道了",
+    "aiSectionTitle": "AI（自带 Key · OpenAI 兼容）",
+    "baseUrlLabel": "API Base URL",
+    "baseUrlPlaceholder": "例如：https://api.openai.com/v1",
+    "modelLabel": "模型",
+    "modelPlaceholder": "例如：gpt-4o-mini",
+    "apiKeyLabel": "API Key",
+    "apiKeyPlaceholder": "粘贴 API Key（保存到系统凭据库，保存后不回显）",
+    "apiKeyPlaceholderConfigured": "已保存在系统凭据库；输入新 Key 可更换",
+    "apiKeyConfigured": "已配置（存于系统凭据库）",
+    "apiKeyNotConfigured": "未配置",
+    "clearKeyButton": "清除 Key",
+    "saveButton": "保存",
+    "saved": "已保存",
+    "testButton": "测试连接",
+    "testing": "测试中…",
+    "testResult": {
+      "ok": "连接成功",
+      "failStatus": "连接失败（HTTP {{status}}）",
+      "failTransport": "连接失败：{{message}}",
+      "detail": "详情：{{detail}}"
+    },
+    "enabledLabel": "AI 总开关",
+    "enabledHint": "关闭后所有 AI 功能返回不可用，其余功能完全不受影响。",
+    "aiStatus": {
+      "on": "AI 已开启",
+      "off": "AI 已关闭",
+      "incomplete": "AI 已开启，但配置不完整"
+    },
+    "sampleButton": "发送 AI 样例请求",
+    "sampleReply": "样例回复：{{content}}",
+    "error": {
+      "ai_disabled": "AI 总开关已关闭",
+      "ai_no_base_url": "尚未配置 Base URL",
+      "ai_no_model": "尚未配置模型",
+      "ai_no_api_key": "尚未配置 API Key",
+      "invalid_base_url": "Base URL 无效（须为 http:// 或 https:// 开头的完整地址）",
+      "invalid_api_key": "API Key 不能为空",
+      "ai_http_status": "AI 端点调用失败：{{message}}",
+      "invalid_response": "AI 响应格式无法解析",
+      "secret_store_error": "系统凭据库操作失败",
+      "repository_error": "数据库操作失败",
+      "client_error": "连接失败：{{message}}",
+      "generic": "操作失败：{{message}}"
+    }
   }
 }
