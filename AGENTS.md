@@ -31,12 +31,12 @@
 
 - **纯函数优先**：核心逻辑（选题、发布格式化、度量、记忆、门槛等）实现为 `src/lib/zhizhi/*.ts` 的纯函数，注入 `now` 等外部依赖以便测试与 SSR 一致。
 - **测试框架**：`vitest`，测试文件与实现同目录、命名 `*.test.ts`。运行 `bun run test`。
-- **提交前三绿**：`bun run test` 全过、`./node_modules/.bin/tsc --noEmit` 0 错误、`bun run lint` 0 error/warning。
+- **提交前三绿**：Rust 侧 `cargo fmt --check`、`cargo clippy -- -D warnings`、`cargo test`、`cargo build` 全过；前端侧 `bunx tsc --noEmit` 0 错误、`bun run lint` 0 error/warning、`bun run test` 全过、`bun run build` 成功。一键门禁：`bun run gate`。
 - **逐项交付**：一个功能一条 commit，本地跑通验证后单独推送到远端。
 - **反代写定位**：新功能应服务于「AI 只出骨架/提示、血肉由创作者写」。检查/提示类能力（只提示不改写）优先于替写类。
 - **i18n**：用户可见文案一律走 `react-i18next` 的 `t()`，字符串存 `src/i18n/locales/{zh-CN,en-US}.json`，不硬编码。
 
 ## 五、发布构建
 
-- Web 版：`bun run build`（SSR + API 路由）。
-- 桌面版（Tauri 静态导出）：`bun run desktop:export`（脚本会临时移出 `src/app/api` 后 `DESKTOP=1 next build`，产出 `out/`，完成后还原）。切勿直接 `DESKTOP=1 next build`。
+- 桌面开发：`bun run tauri dev`（Vite dev server + Tauri 2 壳；首次启动在应用数据目录自动创建 `insightforge.sqlite` 并执行版本化迁移）。
+- 桌面构建：`bun run tauri build`（先 `vite build` 产出 `dist/`，再由 Tauri 打包 NSIS/MSI 安装包）。
