@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractEditorContext } from './context';
+import { extractEditorContext, headingPathAt, paragraphIndexAt } from './context';
 
 /**
  * 提取纯函数的契约（供 09 号票出站包消费）：
@@ -132,5 +132,36 @@ describe('标题大纲', () => {
     const doc = '#非标题\n####也是\n### 真标题\n####### 七个不算\n';
     const outline = extractEditorContext(doc, { anchor: 0, head: 0 }).outline;
     expect(outline.map((entry) => [entry.level, entry.text])).toEqual([[3, '真标题']]);
+  });
+});
+
+describe('paragraphIndexAt / headingPathAt（工作台状态条与出站包共用）', () => {
+  const doc = '# 总标题\n\n第一段。\n\n## 小节\n\n第二段。\n\n第三段。\n';
+
+  it('段落序号从 1 起，标题行也是一个块', () => {
+    expect(paragraphIndexAt(doc, doc.indexOf('第一段') + 1)).toBe(2); // # 总标题 是第 1 块
+    expect(paragraphIndexAt(doc, doc.indexOf('小节') - 1)).toBe(3); // ## 小节 是第 3 块
+    expect(paragraphIndexAt(doc, doc.indexOf('第三段') + 1)).toBe(5);
+  });
+
+  it('光标在空行或空文档时序号为 null', () => {
+    expect(paragraphIndexAt(doc, doc.indexOf('\n\n') + 1)).toBeNull();
+    expect(paragraphIndexAt('', 0)).toBeNull();
+  });
+
+  it('标题路径是光标之前最近的标题链（含光标所在标题行）', () => {
+    expect(headingPathAt(doc, doc.indexOf('第一段'))).toEqual(['总标题']);
+    expect(headingPathAt(doc, doc.indexOf('第二段'))).toEqual(['总标题', '小节']);
+    expect(headingPathAt(doc, doc.indexOf('第三段'))).toEqual(['总标题', '小节']);
+    // 文档开头（任何标题之前）没有标题链
+    const noHeadingFirst = '正文。\n\n# 甲\n\nx\n';
+    expect(headingPathAt(noHeadingFirst, 0)).toEqual([]);
+    // 光标停在标题行本身时包含该标题
+    expect(headingPathAt(doc, doc.indexOf('# 总标题') + 2)).toEqual(['总标题']);
+  });
+
+  it('同级标题正确弹出旧路径', () => {
+    const doc2 = '# 甲\n\n## 乙\n\nx\n\n## 丙\n\ny\n';
+    expect(headingPathAt(doc2, doc2.indexOf('y'))).toEqual(['甲', '丙']);
   });
 });

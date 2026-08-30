@@ -1,9 +1,18 @@
 {
   "shell": {
     "appTitle": "InsightForge",
-    "sidebar": "Sidebar",
-    "editor": "Editor",
-    "evidenceShelf": "Evidence shelf"
+    "sidebar": "Sidebar"
+  },
+  "workspace": {
+    "paneLeft": "Evidence / Search",
+    "paneRight": "Reserved",
+    "editorPlaceholder": "Start writing…",
+    "status": {
+      "paragraph": "Paragraph {{index}}",
+      "blankLine": "Blank line",
+      "emptyDoc": "Empty document",
+      "noHeading": "No heading"
+    }
   },
   "sources": {
     "nav": {

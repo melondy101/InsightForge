@@ -216,3 +216,65 @@ function matchFence(raw: string): string | null {
   const m = /^ {0,3}(`{3,}|~{3,})/.exec(raw);
   return m ? m[1] : null;
 }
+
+/**
+ * 光标（或选区起点）所在段落的全文序号（1 起，标题行也计为一个块）；
+ * 光标处于空行或空文档时返回 null。
+ */
+export function paragraphIndexAt(doc: string, offset: number): number | null {
+  const lines = mapLines(doc);
+  const line = lines[lineAtOffset(lines, Math.max(offset, 0))];
+  if (line.blank) {
+    return null;
+  }
+  let index = 0;
+  let inBlock = false;
+  for (const entry of lines) {
+    if (entry.blank) {
+      inBlock = false;
+      continue;
+    }
+    if (!inBlock) {
+      index += 1;
+      inBlock = true;
+    }
+    if (entry.start >= line.start) {
+      break;
+    }
+  }
+  return index;
+}
+
+/** 光标之前（含光标所在行）最近的标题链：['第一章', '第一节']；之前没有标题则空数组。 */
+export function headingPathAt(doc: string, offset: number): string[] {
+  const lines = mapLines(doc);
+  const cursorLine = lineAtOffset(lines, Math.max(offset, 0));
+  const stack: string[] = [];
+  let inFence = false;
+  let fenceMarker = '';
+  for (const line of lines) {
+    if (line.start > lines[cursorLine].start) {
+      break;
+    }
+    const raw = doc.slice(line.start, line.end);
+    const fence = inFence ? null : matchFence(raw);
+    if (fence) {
+      inFence = true;
+      fenceMarker = fence;
+      continue;
+    }
+    if (inFence) {
+      if (fenceMarker !== '' && matchFence(raw) === fenceMarker) {
+        inFence = false;
+      }
+      continue;
+    }
+    const heading = ATX_HEADING.exec(raw);
+    if (heading) {
+      const level = heading[1].length;
+      stack.length = Math.min(stack.length, level - 1);
+      stack[level - 1] = (heading[2] ?? '').trim();
+    }
+  }
+  return stack.filter((text) => text !== undefined);
+}

@@ -1,4 +1,4 @@
-/* 桌面工作区占位壳样式：三栏布局。正文宽度下限 35%（spec 草稿写作约定）。 */
+/* 桌面工作区样式：三栏可调工作台（中栏宽度下限 35%，spec 草稿写作约定）。 */
 
 :root {
   color-scheme: light dark;
@@ -47,17 +47,94 @@ body {
 
 .pane--sidebar {
   width: 22%;
+  min-width: 140px;
   border-right: 1px solid rgba(127, 127, 127, 0.35);
 }
 
-.pane--editor {
+.pane--sources {
   flex: 1;
-  min-width: 35%;
+  min-width: 60%;
+  overflow-y: auto;
 }
 
-.pane--evidence-shelf {
-  width: 22%;
-  border-left: 1px solid rgba(127, 127, 127, 0.35);
+/* ---- 工作台：可调三栏 ---- */
+
+.workspace-view {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.workspace-view__panes {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+.ws-pane {
+  padding: 12px;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.ws-pane--center {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.ws-pane__title {
+  margin: 0 0 8px;
+  font-size: 0.9em;
+  font-weight: 600;
+  color: rgba(127, 127, 127, 0.9);
+}
+
+.ws-divider {
+  flex: none;
+  width: 5px;
+  cursor: col-resize;
+  background: rgba(127, 127, 127, 0.18);
+  touch-action: none;
+}
+
+.ws-divider:hover,
+.ws-divider:active {
+  background: rgba(127, 127, 127, 0.45);
+}
+
+/* ---- 编辑器（EditorAdapter 挂载点） ---- */
+
+.editor-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-pane__host {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.editor-pane__host .cm-editor {
+  height: 100%;
+}
+
+.editor-pane__host .cm-scroller {
+  overflow: auto;
+}
+
+.editor-pane__status {
+  flex: none;
+  display: flex;
+  gap: 16px;
+  padding: 4px 8px;
+  border-top: 1px solid rgba(127, 127, 127, 0.25);
+  color: rgba(127, 127, 127, 0.9);
+  font-size: 0.85em;
 }
 
 /* ---- 侧栏导航（02 号票：来源管理入口） ---- */
@@ -79,12 +156,6 @@ body {
 
 .sidebar__nav-item:hover {
   background: rgba(127, 127, 127, 0.12);
-}
-
-.pane--sources {
-  flex: 1;
-  min-width: 60%;
-  overflow-y: auto;
 }
 
 /* ---- 来源管理视图 ---- */

@@ -1,9 +1,18 @@
 {
   "shell": {
     "appTitle": "织知 InsightForge",
-    "sidebar": "侧栏",
-    "editor": "编辑器",
-    "evidenceShelf": "证据架"
+    "sidebar": "侧栏"
+  },
+  "workspace": {
+    "paneLeft": "证据架 / 检索",
+    "paneRight": "预留",
+    "editorPlaceholder": "开始写作…",
+    "status": {
+      "paragraph": "第 {{index}} 段",
+      "blankLine": "空行",
+      "emptyDoc": "空文档",
+      "noHeading": "无标题"
+    }
   },
   "sources": {
     "nav": {
