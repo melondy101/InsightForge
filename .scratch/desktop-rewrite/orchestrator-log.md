@@ -25,3 +25,10 @@
 - Reviewer（agent_3dbaf602）：PASS。亲手加 4 个新语料用例 + 变异检验（禁用 getValue 快路径→混合行尾用例立即红）；对称方向 35% 约束补测；Ctrl+Z 撤销链逐级验证。P2：clampPaneWidths 负侧栏宽度（真实窗口实证、700px 自愈）、openDocument 可被撤销到空文档（当前不可达，06 接线时处理）、语料计数 19→实为 18。P3：handoff 归因小误、建议语料加栅栏内 # 行。
 - 合并：787bc76 --no-ff；集成 8 门禁回归全绿。
 - 随单携带至 06：P2-1 负宽度钳制修复+边界测试；P2-2 openDocument 重建 state/isolate history 设计决定。
+
+### Ticket 08 · BYOK 凭据库与 AI 总开关（2026-08-30）
+- 第二次「派发即 Model request failed 但会话实际已跑」事故：attempt 1 留 2 commit 中断；attempt 2 留 1 commit + 12 张 GP 截图/4 组步骤/ mock 服务器脚本中断（Builder 额度耗尽）。依红线第 9 条「外部服务失败 → 交回主控处理」：主控还原行尾幻影、亲跑 8 门禁全绿（Rust 77 + 前端 101）、逐张查验截图真实性后代整 handoff（provenance 明示、未亲证项标注），commit fd9494a。
+- Reviewer（agent_add5e48e）：PASS。keyring 链三重亲证（独立探针经原生 advapi32 CredRead 解出 blob；真实应用库 .sqlite/-wal/-shm 字节扫描无 key；mock 日志恰 2 请求）；GP 步骤日志缺口由 Reviewer 自写 CDP 驱动补齐。P2×2 + 口径确认×1（主控追认：连接测试不受开关限制）。
+- 合并：3fd7c63 --no-ff；集成 8 门禁回归全绿。
+- 教训：本环境子 Agent 派发存在「返回 Model request failed 但会话已实际运行」的故障模式；主控处置 SOP = 先盘 worktree 遗留再决定重派/收尾，不盲目重派。
+- W2 波次完结（02、05、08）。下一步 W3：03（检索）先行，随后 06（草稿原子保存——全计划最高风险票）。
