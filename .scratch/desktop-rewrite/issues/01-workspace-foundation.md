@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done (merged 7b7efaa)
 
 - [ ] `tauri dev` 启动应用壳，三栏占位布局可见；前端为 React + TypeScript + Vite，无 Next.js / SSR / API routes
 - [ ] 首次启动在应用数据目录创建 SQLite 库，迁移框架可执行版本化迁移；WAL + 单一写入队列 + SQLite ≥ 3.51.3（含 2026 WAL-reset 修复）在 repository 层固化
@@ -14,3 +14,4 @@
 
 ## Comments
 - 2026-08-30 Builder attempt 1：handoff 见 .scratch/desktop-rewrite/handoffs/01-handoff.md；commit 50667a0（移除旧 Web 应用）/ 5716f59（新前端工作区）/ 84dde72（Rust core 地基）/ edbb7ed（Tauri 2 壳建库）/ 2012921（门禁与文档）/ 6a129ba（lint 修复）+ handoff 提交（HEAD，见 git log 末条）。
+- 2026-08-30 Orchestrator：Reviewer 独立复验 PASS（P0/P1 零缺陷，P2×3 非阻塞观察项：bun.lock 根名旧模板残留系 baseline 既有、writer 闭包 panic 路径设计取舍、read 与写共用队列）。合并条件①–⑥全满足，`git merge --no-ff` 合入 integration/desktop-rewrite，合并后集成 checkout 全量 8 门禁回归全绿。
