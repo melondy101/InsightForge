@@ -7,9 +7,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
-use insightforge_core::{
-    EventSink, Repository, SourceEvent, SourceSummary, Sources, SourcesError,
-};
+use insightforge_core::{EventSink, Repository, SourceEvent, SourceSummary, Sources, SourcesError};
 
 /// 启动时打开的数据库，经 Tauri managed state 注入后续命令。
 pub struct WorkspaceDb(pub Arc<Repository>);
