@@ -43,3 +43,20 @@ it('来源管理文案在两种语言下可用', () => {
   expect(i18n.t('sources.status.indexing')).toBe('Indexing');
   expect(i18n.t('sources.error.source_paused')).toBe('Source is paused; resume it before syncing');
 });
+
+it('设置文案（08 号票 settings.* 命名空间）在两种语言下可用', () => {
+  i18n.changeLanguage('zh-CN');
+  expect(i18n.t('settings.nav.settings')).toBe('设置');
+  expect(i18n.t('settings.enabledLabel')).toBe('AI 总开关');
+  expect(i18n.t('settings.apiKeyConfigured')).toBe('已配置（存于系统凭据库）');
+  expect(i18n.t('settings.error.ai_disabled')).toBe('AI 总开关已关闭');
+  expect(i18n.t('settings.testResult.failStatus', { status: 401 })).toBe('连接失败（HTTP 401）');
+  i18n.changeLanguage('en-US');
+  expect(i18n.t('settings.nav.settings')).toBe('Settings');
+  expect(i18n.t('settings.enabledLabel')).toBe('AI master switch');
+  expect(i18n.t('settings.apiKeyConfigured')).toBe('Configured (stored in OS credential store)');
+  expect(i18n.t('settings.error.ai_disabled')).toBe('The AI master switch is off');
+  expect(i18n.t('settings.testResult.failStatus', { status: 401 })).toBe(
+    'Connection failed (HTTP 401)',
+  );
+});

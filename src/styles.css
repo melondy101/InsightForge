@@ -158,7 +158,138 @@ body {
   background: rgba(127, 127, 127, 0.12);
 }
 
-/* ---- 来源管理视图 ---- */
+/* ---- 设置视图（08 号票：BYOK 与 AI 总开关） ---- */
+
+.pane--settings {
+  flex: 1;
+  min-width: 60%;
+  overflow-y: auto;
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings__section {
+  border: 1px solid rgba(127, 127, 127, 0.35);
+  border-radius: 8px;
+  padding: 12px 16px;
+  max-width: 560px;
+}
+
+.settings__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.settings input {
+  padding: 6px 8px;
+  border: 1px solid rgba(127, 127, 127, 0.45);
+  border-radius: 4px;
+}
+
+.settings button {
+  padding: 6px 12px;
+  border: 1px solid rgba(127, 127, 127, 0.45);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.settings button:hover:not(:disabled) {
+  background: rgba(127, 127, 127, 0.12);
+}
+
+.settings button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.settings__status-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+.settings__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings__hint {
+  margin: 0 0 10px;
+  color: rgba(127, 127, 127, 0.9);
+  font-size: 0.85em;
+}
+
+.settings__key-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.settings__badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(90, 160, 90, 0.6);
+  color: rgb(70, 140, 70);
+  font-size: 0.85em;
+}
+
+.settings__badge--muted {
+  border-color: rgba(127, 127, 127, 0.45);
+  color: rgba(127, 127, 127, 0.9);
+}
+
+.settings__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings__flash {
+  color: rgb(70, 140, 70);
+  font-size: 0.85em;
+}
+
+.settings__result {
+  margin: 10px 0 0;
+}
+
+.settings__result--ok {
+  color: rgb(70, 140, 70);
+}
+
+.settings__result--fail {
+  color: rgb(200, 80, 60);
+}
+
+.settings__detail {
+  display: block;
+  color: rgba(127, 127, 127, 0.9);
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+
+.settings__error {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid rgba(200, 80, 60, 0.6);
+  border-radius: 6px;
+  color: rgb(200, 80, 60);
+}
+
+/* ---- 来源管理视图（02 号票） ---- */
 
 .sources {
   display: flex;
