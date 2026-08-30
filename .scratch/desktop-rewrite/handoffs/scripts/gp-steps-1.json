@@ -1,0 +1,14 @@
+[
+  { "action": "wait", "ms": 1500 },
+  { "action": "screenshot", "file": "evidence/gp-01-workspace.png" },
+  { "action": "eval", "expr": "document.querySelector('[data-el=workspace-titlebar]')?.textContent ?? null", "expect": "织知 InsightForge", "note": "窗口壳已加载" },
+  { "action": "click", "selector": "[data-el=nav-sources]", "note": "点击侧栏「来源管理」" },
+  { "action": "wait", "ms": 300 },
+  { "action": "eval", "expr": "!!document.querySelector('[data-el=sources-view]')", "expect": "true", "note": "来源管理视图出现" },
+  { "action": "eval", "expr": "document.querySelector('[data-el=sources-default-globs]')?.textContent?.slice(0, 24) ?? null", "note": "默认忽略规则展示" },
+  { "action": "screenshot", "file": "evidence/gp-02-sources-view.png" },
+  { "action": "click", "selector": "[data-el=sources-add-pick]", "note": "打开系统目录选择对话框（真实 dialog 插件）" },
+  { "action": "wait", "ms": 1200 },
+  { "action": "screenshot", "file": "evidence/gp-03-directory-dialog.png" },
+  { "action": "eval", "expr": "document.activeElement?.tagName ?? null", "note": "对话框焦点在原生弹层（页面内 activeElement 通常是 body）" }
+]

@@ -2,113 +2,58 @@ $ bun run lint && bunx tsc --noEmit && bun run test && bun run build && cargo fm
 $ eslint .
 $ vitest run
 
-[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90mD:/Develop/wt/InsightForge/02-source-add-first-index[39m
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90mD:/Develop/wt/InsightForge/01-workspace-foundation[39m
 
- [32m✓[39m src/sources/progress.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 4[2mms[22m[39m
- [32m✓[39m src/i18n/i18n.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/i18n/i18n.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 11[2mms[22m[39m
 
-[2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
-[2m      Tests [22m [1m[32m7 passed[39m[22m[90m (7)[39m
-[2m   Start at [22m 18:21:10
-[2m   Duration [22m 414ms[2m (transform 64ms, setup 0ms, import 151ms, tests 14ms, environment 0ms)[22m
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+[2m   Start at [22m 16:28:32
+[2m   Duration [22m 669ms[2m (transform 109ms, setup 0ms, import 242ms, tests 11ms, environment 0ms)[22m
 
 $ vite build
 [36mvite v8.2.2 [32mbuilding client environment for production...[36m[39m
 transforming...
-✓ 55 modules transformed.
+✓ 45 modules transformed.
 rendering chunks...
 computing gzip size...
-dist/index.html                    0.41 kB │ gzip:  0.27 kB
-dist/assets/index-C3uw27U2.css     2.29 kB │ gzip:  0.81 kB
-dist/assets/dist-js-CTCeL5m8.js    0.16 kB │ gzip:  0.15 kB
-dist/assets/index-Cb8irK3-.js    253.26 kB │ gzip: 80.50 kB
+dist/index.html                   0.40 kB │ gzip:  0.27 kB
+dist/assets/index-CmuUx5l2.css    0.69 kB │ gzip:  0.36 kB
+dist/assets/index-Cb8gOPOM.js   240.71 kB │ gzip: 76.18 kB
 
-[32m✓ built in 177ms[39m
-    Checking insightforge-desktop v0.1.0 (D:\Develop\wt\InsightForge\02-source-add-first-index\src-tauri)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.13s
-   Compiling tempfile v3.27.0
-   Compiling insightforge-desktop v0.1.0 (D:\Develop\wt\InsightForge\02-source-add-first-index\src-tauri)
-   Compiling insightforge-core v0.1.0 (D:\Develop\wt\InsightForge\02-source-add-first-index\crates\core)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.03s
-     Running unittests src\lib.rs (target\debug\deps\insightforge_core-40f8527d1ad7e96e.exe)
-
-running 18 tests
-test chunking::tests::empty_and_blank_inputs_yield_no_chunks ... ok
-test executor::tests::cancel_token_is_shared_across_clones ... ok
-test chunking::tests::plain_text_chunks_have_no_heading_paths ... ok
-test chunking::tests::headings_take_priority_over_length_windows ... ok
-test chunking::tests::nested_headings_form_ancestor_paths ... ok
-test chunking::tests::oversize_single_line_is_hard_split_by_length_window ... ok
-test chunking::tests::sections_exceeding_window_are_packed_by_paragraphs ... ok
-test scan::tests::trailing_slash_and_empty_patterns_are_handled ... ok
-test scan::tests::validate_rel_path_accepts_and_normalizes_regular_paths ... ok
-test scan::tests::validate_rel_path_rejects_traversal_and_absolute_cases ... ok
-test scan::tests::anchored_globs_only_match_from_root_prefix ... ok
-test scan::tests::bare_globs_match_any_path_component ... ok
-test executor::tests::jobs_run_on_executor_threads_and_all_complete ... ok
-test scan::tests::read_only_handle_rejects_writes_but_allows_reads ... ok
-test scan::tests::stays_within_root_rejects_paths_outside_the_root ... ok
-test scan::tests::normalize_root_accepts_temp_dir_and_rejects_missing_or_file ... ok
-test scan::tests::file_identity_is_stable_per_file_and_distinct_across_files ... ok
-test chunking::tests::property_chunks_cover_every_line_within_window ... ok
-
-test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
-
-     Running tests\repository.rs (target\debug\deps\repository-617a716b09c6ca71.exe)
-
-running 9 tests
-test linked_sqlite_meets_the_specified_minimum_version ... ok
-test migrator_rejects_migration_versions_that_do_not_strictly_increase ... ok
-test failed_write_rolls_back_partial_work ... ok
-test open_defaults_to_wal_journal_mode ... ok
-test open_creates_sqlite_file_at_requested_path ... ok
-test open_applies_pending_migrations_and_records_versions ... ok
-test reopening_database_does_not_reapply_finished_migrations ... ok
-test queue_keeps_accepting_writes_after_a_failed_write ... ok
-test concurrent_writes_serialize_through_the_single_write_queue ... ok
-
-test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.73s
-
-     Running tests\schema.rs (target\debug\deps\schema-b8558cf3ba3805a6.exe)
-
-running 3 tests
-test source_file_schema_keeps_fields_for_file_identity_and_status ... ok
-test fragment_fts_trigram_tokenizer_matches_chinese_queries ... ok
-test open_applies_ticket02_migrations_and_creates_domain_tables ... ok
-
-test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
-
-     Running tests\sources.rs (target\debug\deps\sources-33d830b9ace35d77.exe)
-
-running 18 tests
-test symlink_file_escape_outside_root_is_rejected ... ok
-test add_rejects_file_as_root ... ok
-test default_ignore_globs_exclude_noise_files ... ok
-test add_rejects_blank_name ... ok
-test add_rejects_missing_root ... ok
-test add_rejects_duplicate_root ... ok
-test custom_ignore_globs_replace_defaults_and_are_honored ... ok
-test pause_rejects_sync_and_resume_restores_it ... ok
-test add_runs_first_backfill_landing_fragments_and_fts_with_progress_events ... ok
-test remove_cleans_index_but_keeps_source_files_intact ... ok
-test backfill_and_sync_never_modify_source_files ... ok
-test repeated_sync_never_duplicates_fragments ... ok
-test junction_escape_outside_root_is_never_indexed ... ok
-test sync_reindexes_only_the_changed_file ... ok
-test sync_skips_unchanged_files_without_reindexing ... ok
-test tampered_traversal_rel_path_is_rejected_on_sync ... ok
-test remove_while_indexing_waits_then_cleans ... ok
-test pause_stops_running_backfill_and_resume_sync_converges ... ok
-
-test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.41s
-
-     Running unittests src\lib.rs (target\debug\deps\insightforge_desktop-0fda1cbaf2f4edb8.exe)
+[32m✓ built in 228ms[39m
+    Checking insightforge-desktop v0.1.0 (D:\Develop\wt\InsightForge\01-workspace-foundation\src-tauri)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.25s
+   Compiling insightforge-desktop v0.1.0 (D:\Develop\wt\InsightForge\01-workspace-foundation\src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.61s
+     Running unittests src\lib.rs (target\debug\deps\insightforge_core-f3badccaa8033196.exe)
 
 running 0 tests
 
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
-     Running unittests src\main.rs (target\debug\deps\insightforge_desktop-fc34d59efa310068.exe)
+     Running tests\repository.rs (target\debug\deps\repository-43b07dc4b2600850.exe)
+
+running 9 tests
+test linked_sqlite_meets_the_specified_minimum_version ... ok
+test migrator_rejects_migration_versions_that_do_not_strictly_increase ... ok
+test open_defaults_to_wal_journal_mode ... ok
+test open_creates_sqlite_file_at_requested_path ... ok
+test queue_keeps_accepting_writes_after_a_failed_write ... ok
+test open_applies_pending_migrations_and_records_versions ... ok
+test reopening_database_does_not_reapply_finished_migrations ... ok
+test failed_write_rolls_back_partial_work ... ok
+test concurrent_writes_serialize_through_the_single_write_queue ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.19s
+
+     Running unittests src\lib.rs (target\debug\deps\insightforge_desktop-592cf5d102959d4f.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (target\debug\deps\insightforge_desktop-93a451119e655d4e.exe)
 
 running 0 tests
 
@@ -126,6 +71,4 @@ running 0 tests
 
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
-   Compiling insightforge-desktop v0.1.0 (D:\Develop\wt\InsightForge\02-source-add-first-index\src-tauri)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.41s
-GATE_EXIT=0
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.38s
