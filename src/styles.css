@@ -1,0 +1,61 @@
+/* 桌面工作区占位壳样式：三栏布局。正文宽度下限 35%（spec 草稿写作约定）。 */
+
+:root {
+  color-scheme: light dark;
+  font-family:
+    'Segoe UI',
+    'Microsoft YaHei',
+    system-ui,
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  height: 100vh;
+}
+
+#root {
+  height: 100%;
+}
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.workspace__titlebar {
+  padding: 8px 16px;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.35);
+}
+
+.workspace__panes {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.pane {
+  padding: 16px;
+  color: rgba(127, 127, 127, 0.9);
+}
+
+.pane--sidebar {
+  width: 22%;
+  border-right: 1px solid rgba(127, 127, 127, 0.35);
+}
+
+.pane--editor {
+  flex: 1;
+  min-width: 35%;
+}
+
+.pane--evidence-shelf {
+  width: 22%;
+  border-left: 1px solid rgba(127, 127, 127, 0.35);
+}
