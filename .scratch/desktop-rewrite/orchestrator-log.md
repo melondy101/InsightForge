@@ -5,3 +5,8 @@
 - Reviewer（agent_2cccbf08）：VERDICT PASS。P0/P1=0；P2×3 非阻塞（bun.lock 根名 "nextjs-template" 系 baseline 既有残留，frozen-lockfile 不受影响；writer 闭包 panic→队列关闭为设计取舍；read 共用单写线程为 01 保守实现）。证据交叉印证：测试二进制与 dist 产物哈希一致。
 - 合并：7b7efaa `git merge --no-ff ticket/01-workspace-foundation`；合并后集成 checkout 全量 8 门禁回归全绿（bun install --frozen-lockfile exit 0）。
 - 遗留跟进：P2-1 bun.lock 根名在下次触碰 package.json 的票据顺手修正。
+
+### 事故记录 · 02 Builder attempt 1 会话崩溃（2026-08-30）
+- 派发 02 Builder 后模型请求失败，子会话在交付 handoff 前崩溃；遗留 10 个 commit（c6c0bc0..558b9d3：迁移 0001–0003、分块纯函数、扫描边界、命令 seam、增量语义、暂停/恢复/移除、只读边界、Tauri 注册、来源管理视图+i18n）。
+- 主控处置：还原其越界覆盖的 01 号票证据文件 handoffs/evidence/tauri-dev.log（git checkout）；cargo test 复验遗留 commit 真实全绿（18+9+3+18 passed）；未跟踪的 Golden Path 截图/脚本目录留给 attempt 2 归置。
+- 决定：不重置分支；派发全新 Builder 会话 = attempt 2（末次 Builder 额度），任务为审计遗留工作 + TDD 补全 + 自跑全部门禁 + 自做 Golden Path + 撰写 handoff 02。若失败 → ticket 02 置 blocked 并升级用户。
