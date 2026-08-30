@@ -44,13 +44,18 @@ pub enum ScanError {
 /// Windows 下去除 canonicalize 产生的 verbatim（`\\?\` / `\\?\UNC\`）前缀，
 /// 便于展示与一致比较。
 pub fn normalize_root(root: &Path) -> Result<PathBuf, ScanError> {
-    let canonical = root
-        .canonicalize()
+    let canonical = canonical_path(root)
         .map_err(|err| ScanError::InvalidRoot(format!("{}: {err}", root.display())))?;
     if !canonical.is_dir() {
         return Err(ScanError::RootNotADirectory(root.display().to_string()));
     }
-    Ok(strip_verbatim(&canonical))
+    Ok(canonical)
+}
+
+/// canonical 化并去除 Windows verbatim 前缀（与 normalize_root 口径一致，
+/// 供 symlink 逃逸比较使用）。
+pub fn canonical_path(path: &Path) -> std::io::Result<PathBuf> {
+    Ok(strip_verbatim(&path.canonicalize()?))
 }
 
 /// 去除 Windows verbatim 路径前缀（非 Windows 或非 verbatim 路径原样返回）。
