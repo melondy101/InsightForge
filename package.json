@@ -15,7 +15,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "gate": "bun run lint && bunx tsc --noEmit && bun run test && bun run build && cargo fmt --check && cargo clippy -- -D warnings && cargo test && cargo build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",

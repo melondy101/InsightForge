@@ -1,0 +1,12 @@
+[package]
+name = "insightforge-desktop"
+version.workspace = true
+edition.workspace = true
+description = "InsightForge 桌面壳（Tauri 2）：窗口与启动装配，业务能力都在 insightforge-core"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+insightforge-core = { path = "../crates/core" }
+tauri = { version = "2", features = [] }
