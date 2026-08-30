@@ -255,6 +255,12 @@ dist
 # CodeGraph 本地代码索引
 /.codegraph/
 
+# Rust workspace 构建产物（根 Cargo workspace）
+/target/
+
+# Tauri 生成物
+src-tauri/gen/schemas/
+
 # Brainstorming 可视化伴侣会话
 /.superpowers/
 
