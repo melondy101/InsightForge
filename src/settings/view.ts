@@ -46,9 +46,7 @@ export function apiKeyView(apiKeyConfigured: boolean, draft: string): ApiKeyView
 
 export interface AiStatusView {
   key: 'settings.aiStatus.on' | 'settings.aiStatus.off' | 'settings.aiStatus.incomplete';
-}
-
-/** 总开关状态渲染：关闭优先；开启但缺任一配置 = 配置不完整。 */
+}/** 总开关状态渲染：关闭优先；开启但缺任一配置 = 配置不完整。 */
 export function aiStatusView(
   ai: Pick<AiSettings, 'enabled' | 'baseUrl' | 'model' | 'apiKeyConfigured'>,
 ): AiStatusView {
@@ -57,6 +55,24 @@ export function aiStatusView(
   }
   const complete = ai.baseUrl !== null && ai.model !== null && ai.apiKeyConfigured;
   return { key: complete ? 'settings.aiStatus.on' : 'settings.aiStatus.incomplete' };
+}
+
+export interface SettingsDraft {
+  baseUrl: string;
+  model: string;
+}
+
+/**
+ * 表单草稿 ← 快照回填（重开设置/读到快照时调用）：
+ * base/model 输入框必须反映已保存配置——否则空表单上再点「保存」会把
+ * null 发给 settings_set_ai，静默清掉用户的 base/model（GP 实测发现）。
+ * Key 不参与回填：凭据永不回显，输入框只是重录入口。
+ */
+export function draftFromSnapshot(ai: AiSettings | null): SettingsDraft {
+  return {
+    baseUrl: ai?.baseUrl ?? '',
+    model: ai?.model ?? '',
+  };
 }
 
 export interface TestResultView {

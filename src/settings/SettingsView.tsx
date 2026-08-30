@@ -8,7 +8,7 @@ import {
   type CommandErrorShape,
   type TestConnectionReport,
 } from './api';
-import { aiStatusView, apiKeyView, settingsErrorView, testResultView } from './view';
+import { aiStatusView, apiKeyView, draftFromSnapshot, settingsErrorView, testResultView } from './view';
 
 /** 样例 AI 命令的固定最小提示词（演示守门语义用）。 */
 const SAMPLE_PROMPT = 'ping';
@@ -39,7 +39,12 @@ export function SettingsView() {
 
   const refresh = useCallback(async () => {
     try {
-      setAi(await settingsApi.get());
+      const next = await settingsApi.get();
+      setAi(next);
+      // 草稿随快照回填：重开设置必须看到已保存的 base/model，
+      // 否则空表单上点保存会误清配置（GP 实测缺陷）。
+      setBaseUrl(next.baseUrl ?? '');
+      setModel(next.model ?? '');
     } catch (err) {
       setError(err as CommandErrorShape);
     }
@@ -78,8 +83,9 @@ export function SettingsView() {
         next = await settingsApi.setApiKey(apiKeyDraft.trim());
         setApiKeyDraft('');
       }
-      setBaseUrl(next.baseUrl ?? '');
-      setModel(next.model ?? '');
+      const draft = draftFromSnapshot(next);
+      setBaseUrl(draft.baseUrl);
+      setModel(draft.model);
       return next;
     });
 
@@ -87,8 +93,9 @@ export function SettingsView() {
     setApiKeyDraft('');
     void run(async () => {
       const next = await settingsApi.clearApiKey();
-      setBaseUrl(next.baseUrl ?? '');
-      setModel(next.model ?? '');
+      const draft = draftFromSnapshot(next);
+      setBaseUrl(draft.baseUrl);
+      setModel(draft.model);
       return next;
     });
   };

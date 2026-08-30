@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   aiStatusView,
   apiKeyView,
+  draftFromSnapshot,
   settingsErrorView,
   testResultView,
 } from './view';
@@ -73,6 +74,34 @@ describe('aiStatusView —— 总开关状态渲染', () => {
     expect(aiStatusView({ ...complete, apiKeyConfigured: false }).key).toBe(
       'settings.aiStatus.incomplete',
     );
+  });
+});
+
+describe('draftFromSnapshot —— 表单草稿随快照回填（重开设置不失已存配置）', () => {
+  it('快照含 base/model：草稿回填为已存值（重开设置可看到已保存配置）', () => {
+    expect(
+      draftFromSnapshot({
+        baseUrl: 'http://127.0.0.1:18787/v1',
+        model: 'mock-model',
+        apiKeyConfigured: true,
+        enabled: false,
+      }),
+    ).toEqual({ baseUrl: 'http://127.0.0.1:18787/v1', model: 'mock-model' });
+  });
+
+  it('快照为 null（尚未读到）：草稿为空串而非 null', () => {
+    expect(draftFromSnapshot(null)).toEqual({ baseUrl: '', model: '' });
+  });
+
+  it('快照字段为 null（未配置项）：对应草稿为空串', () => {
+    expect(
+      draftFromSnapshot({
+        baseUrl: null,
+        model: 'm1',
+        apiKeyConfigured: false,
+        enabled: false,
+      }),
+    ).toEqual({ baseUrl: '', model: 'm1' });
   });
 });
 
