@@ -222,7 +222,7 @@ impl Sources {
     /// 暂停或恢复来源。暂停会取消该来源进行中的补扫（尽快停止）；
     /// 暂停期间 `sync` 被拒绝。
     pub fn pause(&self, id: &str, paused: bool) -> Result<SourceSummary, SourcesError> {
-        let source = self
+        let mut source = self
             .repo
             .read({
                 let id = id.to_string();
@@ -237,6 +237,7 @@ impl Sources {
         let paused_id = id.to_string();
         self.repo
             .write(move |conn| store::set_paused(conn, &paused_id, paused))?;
+        source.paused = paused;
         self.summary_of(&source)
     }
 

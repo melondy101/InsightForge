@@ -388,3 +388,135 @@ fn repeated_sync_never_duplicates_fragments() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// 切片 6：暂停 / 恢复 / 移除——取消令牌、索引清理、源文件原样保留。
+// ---------------------------------------------------------------------------
+
+use std::fs;
+
+fn sha256_of_file(path: &Path) -> String {
+    let bytes = fs::read(path).expect("read file for hashing");
+    // 复用 core 的 hash 不属于公共 API：这里直接用双实现对比不划算，
+    // 只需同一实现前后一致即可证明「内容未变」。
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(&bytes);
+    digest.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+#[test]
+fn pause_rejects_sync_and_resume_restores_it() {
+    let (h, _root, id) = seeded_source();
+
+    let paused = h.sources.pause(&id, true).expect("pause should succeed");
+    assert!(paused.paused, "列表状态必须反映暂停");
+
+    let error = h.sources.sync(&id).unwrap_err();
+    assert!(
+        matches!(error, SourcesError::SourcePaused(_)),
+        "暂停来源的 sync 必须被拒绝，got: {error}"
+    );
+
+    let resumed = h.sources.pause(&id, false).expect("resume should succeed");
+    assert!(!resumed.paused);
+    h.sources.sync(&id).expect("resume 后 sync 必须可用");
+    wait_until_idle(&h.sources, &id);
+}
+
+#[test]
+fn pause_stops_running_backfill_and_resume_sync_converges() {
+    let h = harness();
+    let root = h.db_dir.path().join("many");
+    for i in 0..400 {
+        write_file(
+            &root,
+            &format!("note-{i}.md"),
+            &format!("# 标题{i}\n\n第{i}段内容，中文正文若干。\n"),
+        );
+    }
+    let summary = h
+        .sources
+        .add(&root, "many", None)
+        .expect("add should succeed");
+
+    // 补扫进行中暂停（可能晚于完成——两种结局都必须收敛）。
+    let _ = h.sources.pause(&summary.id, true);
+    let paused = wait_until_idle(&h.sources, &summary.id);
+    assert!(paused.paused, "暂停后列表必须显示已暂停");
+
+    // 恢复 + 手动同步 → 文件数收敛到 400。
+    h.sources.pause(&summary.id, false).expect("resume");
+    h.sources.sync(&summary.id).expect("sync after resume");
+    let idle = wait_until_idle(&h.sources, &summary.id);
+    assert_eq!(idle.file_count, 400, "恢复并同步后必须收敛到全部文件");
+}
+
+#[test]
+fn remove_cleans_index_but_keeps_source_files_intact() {
+    let (h, root, id) = seeded_source();
+    let hashes_before: Vec<String> = ["笔记.md", "plain.txt"]
+        .iter()
+        .map(|rel| sha256_of_file(&root.join(rel)))
+        .collect();
+
+    h.sources.remove(&id).expect("remove should succeed");
+    assert!(
+        h.sources.list().unwrap().is_empty(),
+        "移除后来源列表必须为空"
+    );
+    let inspector =
+        rusqlite::Connection::open(h.db_dir.path().join("insightforge.sqlite")).unwrap();
+    for table in [
+        "knowledge_source",
+        "source_file",
+        "fragment",
+        "fragment_fts",
+    ] {
+        let count: i64 = inspector
+            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(count, 0, "移除必须清空 {table}");
+    }
+
+    let hashes_after: Vec<String> = ["笔记.md", "plain.txt"]
+        .iter()
+        .map(|rel| sha256_of_file(&root.join(rel)))
+        .collect();
+    assert_eq!(
+        hashes_before, hashes_after,
+        "移除只清理索引记录，源文件必须原样保留"
+    );
+}
+
+#[test]
+fn remove_while_indexing_waits_then_cleans() {
+    let h = harness();
+    let root = h.db_dir.path().join("many");
+    for i in 0..400 {
+        write_file(
+            &root,
+            &format!("note-{i}.md"),
+            &format!("# 标题{i}\n\n第{i}段内容，中文正文若干。\n"),
+        );
+    }
+    let summary = h
+        .sources
+        .add(&root, "many", None)
+        .expect("add should succeed");
+
+    // 索引进行中移除：应等待补扫停止后清理，且不 panic。
+    h.sources
+        .remove(&summary.id)
+        .expect("remove during indexing should succeed");
+    assert!(h.sources.list().unwrap().is_empty());
+    let inspector =
+        rusqlite::Connection::open(h.db_dir.path().join("insightforge.sqlite")).unwrap();
+    let sources_left: i64 = inspector
+        .query_row("SELECT COUNT(*) FROM knowledge_source", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(sources_left, 0, "移除后不得残留来源记录");
+}
