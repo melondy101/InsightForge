@@ -27,6 +27,10 @@ impl EventLog {
     fn snapshot(&self) -> Vec<SourceEvent> {
         self.0.lock().unwrap().clone()
     }
+
+    fn clear(&self) {
+        self.0.lock().unwrap().clear();
+    }
 }
 
 struct TestHarness {
@@ -244,4 +248,143 @@ fn add_rejects_duplicate_root() {
         matches!(error, SourcesError::DuplicateRoot(_)),
         "同一根目录不允许重复授权，got: {error}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// 切片 5：增量语义——仅解析新增或 hash 改变的文件；重复 sync 无重复片段。
+// ---------------------------------------------------------------------------
+
+/// 建一个含两文件的来源并等首次补扫结束。
+fn seeded_source() -> (TestHarness, std::path::PathBuf, String) {
+    let h = harness();
+    let root = h.db_dir.path().join("kb");
+    write_file(
+        &root,
+        "笔记.md",
+        "# 架构\n\n本地优先的核心思想。\n\n## 边界\n\n知识库只读。\n",
+    );
+    write_file(
+        &root,
+        "plain.txt",
+        "第一段，一些中文内容。\n\n第二段，更多内容。\n",
+    );
+    let summary = h
+        .sources
+        .add(&root, "笔记", None)
+        .expect("add should succeed");
+    wait_until_idle(&h.sources, &summary.id);
+    (h, root, summary.id)
+}
+
+fn fragment_totals(db_path: &Path) -> (i64, i64, i64) {
+    let inspector = rusqlite::Connection::open(db_path).unwrap();
+    let fragments: i64 = inspector
+        .query_row("SELECT COUNT(*) FROM fragment", [], |row| row.get(0))
+        .unwrap();
+    let fts: i64 = inspector
+        .query_row("SELECT COUNT(*) FROM fragment_fts", [], |row| row.get(0))
+        .unwrap();
+    let files: i64 = inspector
+        .query_row("SELECT COUNT(*) FROM source_file", [], |row| row.get(0))
+        .unwrap();
+    (files, fragments, fts)
+}
+
+#[test]
+fn sync_skips_unchanged_files_without_reindexing() {
+    let (h, _root, id) = seeded_source();
+    h.events.clear();
+
+    h.sources.sync(&id).expect("manual sync should succeed");
+    wait_until_idle(&h.sources, &id);
+
+    let events = h.events.snapshot();
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, SourceEvent::FileIndexed { .. })),
+        "内容未变的文件绝不能重解析，got {events:?}"
+    );
+    assert!(
+        matches!(
+            events.last(),
+            Some(SourceEvent::BackfillCompleted {
+                indexed_files: 0,
+                total_files: 2,
+                ..
+            })
+        ),
+        "补扫应完成且 0 个文件被重建索引，got {events:?}"
+    );
+    let (files, fragments, fts) = fragment_totals(&h.db_dir.path().join("insightforge.sqlite"));
+    assert_eq!((files, fragments, fts), (2, 3, 3));
+}
+
+#[test]
+fn sync_reindexes_only_the_changed_file() {
+    let (h, root, id) = seeded_source();
+    let original = std::fs::read_to_string(root.join("笔记.md")).unwrap();
+    let updated = format!("{original}\n## 新边界\n\n补扫是最终一致的手段。\n");
+    std::fs::write(root.join("笔记.md"), updated).unwrap();
+    h.events.clear();
+
+    h.sources.sync(&id).expect("manual sync should succeed");
+    wait_until_idle(&h.sources, &id);
+
+    let changed: Vec<String> = h
+        .events
+        .snapshot()
+        .into_iter()
+        .filter_map(|e| match e {
+            SourceEvent::FileIndexed { rel_path, .. } => Some(rel_path),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        changed,
+        vec!["笔记.md".to_string()],
+        "只有内容改变的文件被重建索引"
+    );
+
+    let inspector =
+        rusqlite::Connection::open(h.db_dir.path().join("insightforge.sqlite")).unwrap();
+    let note_fragments: i64 = inspector
+        .query_row(
+            "SELECT COUNT(*) FROM fragment f JOIN source_file sf ON f.source_file_id = sf.id
+             WHERE sf.rel_path = '笔记.md'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        note_fragments, 3,
+        "变更文件的单文件事务替换：三个小节 → 三个片段"
+    );
+    let old_heading_gone: i64 = inspector
+        .query_row(
+            "SELECT COUNT(*) FROM fragment WHERE heading_path = '架构 > 新边界'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(old_heading_gone, 1, "新标题路径应入库");
+    let (files, fragments, fts) = fragment_totals(&h.db_dir.path().join("insightforge.sqlite"));
+    assert_eq!((files, fragments, fts), (2, 4, 4), "FTS 与片段保持一一对应");
+}
+
+#[test]
+fn repeated_sync_never_duplicates_fragments() {
+    let (h, _root, id) = seeded_source();
+
+    for round in 0..3 {
+        h.events.clear();
+        h.sources.sync(&id).expect("sync should succeed");
+        wait_until_idle(&h.sources, &id);
+        let (files, fragments, fts) = fragment_totals(&h.db_dir.path().join("insightforge.sqlite"));
+        assert_eq!(
+            (files, fragments, fts),
+            (2, 3, 3),
+            "第 {round} 轮重复 sync 不得产生重复片段/FTS 行"
+        );
+    }
 }
