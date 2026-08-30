@@ -59,3 +59,141 @@ body {
   width: 22%;
   border-left: 1px solid rgba(127, 127, 127, 0.35);
 }
+
+/* ---- 侧栏导航（02 号票：来源管理入口） ---- */
+
+.sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar__nav-item {
+  text-align: left;
+  padding: 8px 12px;
+  border: 1px solid rgba(127, 127, 127, 0.35);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sidebar__nav-item:hover {
+  background: rgba(127, 127, 127, 0.12);
+}
+
+.pane--sources {
+  flex: 1;
+  min-width: 60%;
+  overflow-y: auto;
+}
+
+/* ---- 来源管理视图 ---- */
+
+.sources {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sources__add,
+.sources__list {
+  border: 1px solid rgba(127, 127, 127, 0.35);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.sources__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.sources__field-row {
+  display: flex;
+  gap: 8px;
+}
+
+.sources__field-row input {
+  flex: 1;
+}
+
+.sources input {
+  padding: 6px 8px;
+  border: 1px solid rgba(127, 127, 127, 0.45);
+  border-radius: 4px;
+}
+
+.sources button {
+  padding: 6px 12px;
+  border: 1px solid rgba(127, 127, 127, 0.45);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sources button:hover:not(:disabled) {
+  background: rgba(127, 127, 127, 0.12);
+}
+
+.sources button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sources__globs {
+  color: rgba(127, 127, 127, 0.9);
+  font-size: 0.85em;
+}
+
+.sources__error {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid rgba(200, 80, 60, 0.6);
+  border-radius: 6px;
+  color: rgb(200, 80, 60);
+}
+
+.sources__columns {
+  display: grid;
+  grid-template-columns: 1.2fr 2.4fr 0.8fr 0.6fr 1.6fr 2fr;
+  gap: 8px;
+  padding-bottom: 6px;
+  color: rgba(127, 127, 127, 0.9);
+  font-weight: 600;
+}
+
+.sources__row {
+  display: grid;
+  grid-template-columns: 1.2fr 2.4fr 0.8fr 0.6fr 1.6fr 2fr;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid rgba(127, 127, 127, 0.25);
+  list-style: none;
+}
+
+ul:has(> .sources__row) {
+  padding: 0;
+  margin: 0;
+}
+
+.sources__row-path {
+  overflow-wrap: anywhere;
+  color: rgba(127, 127, 127, 0.9);
+  font-size: 0.9em;
+}
+
+.sources__row-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sources__row-progress {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}

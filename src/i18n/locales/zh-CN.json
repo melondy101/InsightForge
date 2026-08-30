@@ -4,5 +4,55 @@
     "sidebar": "侧栏",
     "editor": "编辑器",
     "evidenceShelf": "证据架"
+  },
+  "sources": {
+    "nav": {
+      "workspace": "工作台",
+      "sources": "来源管理"
+    },
+    "title": "来源管理",
+    "addTitle": "添加来源",
+    "nameLabel": "名称",
+    "namePlaceholder": "例如：我的笔记",
+    "pathLabel": "知识库目录",
+    "pathPlaceholder": "粘贴文件夹路径，或点击右侧按钮选择",
+    "pickDirectory": "选择目录…",
+    "addButton": "添加并索引",
+    "defaultIgnoreTitle": "默认忽略规则",
+    "listTitle": "来源列表",
+    "empty": "还没有来源。添加你的第一个知识库目录吧。",
+    "columnName": "名称",
+    "columnPath": "路径",
+    "columnStatus": "状态",
+    "columnFiles": "文件数",
+    "columnProgress": "进度",
+    "columnActions": "操作",
+    "status": {
+      "idle": "空闲",
+      "indexing": "索引中",
+      "paused": "已暂停"
+    },
+    "progress": "索引进度 {{processed}}/{{total}}",
+    "sync": "同步",
+    "pause": "暂停",
+    "resume": "恢复",
+    "remove": "移除",
+    "removeConfirm": "移除来源只清理索引记录，不会改动源文件。确定移除？",
+    "dismissError": "知道了",
+    "error": {
+      "invalid_name": "名称不能为空",
+      "duplicate_root": "该目录已添加为来源",
+      "source_not_found": "来源不存在或已被移除",
+      "source_paused": "来源已暂停，恢复后才能同步",
+      "already_indexing": "该来源正在索引中，请稍候",
+      "invalid_root": "目录不存在或不可访问",
+      "root_not_a_directory": "所选路径不是文件夹",
+      "invalid_ignore_glob": "忽略规则格式无效",
+      "invalid_rel_path": "检测到非法路径，已拒绝",
+      "repository_error": "数据库操作失败",
+      "io_error": "读取文件失败",
+      "cancelled": "操作已取消",
+      "generic": "操作失败：{{message}}"
+    }
   }
 }
