@@ -252,3 +252,12 @@ dist
 # 临时探针
 /_probe.js
 
+# CodeGraph 本地代码索引
+/.codegraph/
+
+# Brainstorming 可视化伴侣会话
+/.superpowers/
+
+
+# 包管理器缓存
+/.npm-cache/

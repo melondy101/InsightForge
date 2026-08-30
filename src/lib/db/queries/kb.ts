@@ -1,25 +1,8 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "../client";
-import type {
-  Cluster,
-  Draft,
-  Fragment,
-  Gap,
-  Guardrails,
-  Identity,
-  Writing,
-} from "@/lib/zhizhi/types";
+import type { Fragment, Gap, Draft } from "@/lib/zhizhi/types";
 import { DEFAULT_GUARDRAILS, DEFAULT_IDENTITY } from "@/lib/zhizhi/types";
-
-export interface KbState {
-  clusters: Cluster[];
-  fragments: Fragment[];
-  gaps: Gap[];
-  drafts: Draft[];
-  writings: Writing[];
-  guardrails: Guardrails;
-  identity?: Identity;
-}
+import type { KbState } from "@/lib/api/kb";
 
 function requireDb() {
   if (!db) throw new Error("database_disabled");

@@ -3,7 +3,8 @@
 // 数据量在个人知识库规模下很小，一次性读取简单且不易出错。
 
 import { isDatabaseEnabled } from "@/lib/db/client";
-import { loadState, type KbState } from "@/lib/db/queries/kb";
+import { loadState } from "@/lib/db/queries/kb";
+import type { KbState } from "@/lib/api/kb";
 
 export class KbUnavailableError extends Error {
   constructor() {

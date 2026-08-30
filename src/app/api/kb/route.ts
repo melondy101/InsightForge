@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { isDatabaseEnabled } from "@/lib/db/client";
-import { isEmpty, loadState, saveState, type KbState } from "@/lib/db/queries/kb";
+import { isEmpty, loadState, saveState } from "@/lib/db/queries/kb";
+import type { KbState } from "@/lib/api/kb";
 import {
   SEED_CLUSTERS,
   SEED_DRAFTS,
