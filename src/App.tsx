@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { SourcesView } from './sources/SourcesView';
+import { WorkspaceView } from './workspace/WorkspaceView';
 
 type View = 'workspace' | 'sources';
 
 /**
- * 桌面工作区壳：三栏布局 + 侧栏导航。
- * 「来源管理」视图由 02 号票交付；工作台三栏仍是占位骨架。
+ * 桌面工作区壳：侧栏导航 + 视图区。
+ * 「工作台」视图为可调三栏（05 号票）；「来源管理」视图由 02 号票交付。
  * 每个交互区域带 data-el 定位属性（CONTEXT.md §七）。
  */
 export function App() {
@@ -20,7 +21,7 @@ export function App() {
         {t('shell.appTitle')}
       </header>
       <div className="workspace__panes">
-        <aside className="pane pane--sidebar" data-el="pane-sidebar">
+        <aside className="pane pane--sidebar" data-el="pane-sidebar" aria-label={t('shell.sidebar')}>
           <nav className="sidebar__nav" data-el="sidebar-nav">
             <button
               type="button"
@@ -45,14 +46,7 @@ export function App() {
             <SourcesView />
           </section>
         ) : (
-          <>
-            <section className="pane pane--editor" data-el="pane-editor">
-              {t('shell.editor')}
-            </section>
-            <aside className="pane pane--evidence-shelf" data-el="pane-evidence-shelf">
-              {t('shell.evidenceShelf')}
-            </aside>
-          </>
+          <WorkspaceView />
         )}
       </div>
     </div>
