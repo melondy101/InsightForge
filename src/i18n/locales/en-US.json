@@ -169,5 +169,17 @@
     "adopt": "Adopt",
     "sourceDeleted": "Source deleted",
     "adopted": "Adopted"
+  },
+  "egress": {
+    "nav": {
+      "egress": "Egress"
+    },
+    "title": "Egress",
+    "empty": "No egress records yet.",
+    "dismiss": "Dismiss",
+    "fragmentCount": "Fragment count",
+    "model": "Model",
+    "createdAt": "Created at",
+    "status": "Status"
   }
 }

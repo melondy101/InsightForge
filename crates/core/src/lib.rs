@@ -6,6 +6,7 @@
 
 pub mod chunking;
 pub mod drafts;
+pub mod egress;
 pub mod executor;
 pub mod http_client;
 mod indexer;
@@ -20,6 +21,9 @@ mod store;
 
 pub use chunking::{chunk_markdown, chunk_plain, Chunk, ChunkConfig, DEFAULT_MAX_CHUNK_CHARS};
 pub use drafts::{Conflict, DraftFile, DraftsError, DraftsService};
+pub use egress::{
+    AuditLogger, AuditRecord, EgressBundle, EgressBundleBuilder, EgressError, EgressFragment,
+};
 pub use executor::{CancelToken, Executor, ExecutorError};
 pub use http_client::{AiHttpClient, HttpClientError, HttpRequest, HttpResponse, UreqAiHttpClient};
 pub use references::{Reference, ReferencesError, ReferencesService};
