@@ -5,6 +5,7 @@
 //! executor、Sources 命令 seam）。后续票据继续垂直切片。
 
 pub mod chunking;
+pub mod coach;
 pub mod drafts;
 pub mod egress;
 pub mod executor;
@@ -21,6 +22,9 @@ mod store;
 pub mod thoughts;
 
 pub use chunking::{chunk_markdown, chunk_plain, Chunk, ChunkConfig, DEFAULT_MAX_CHUNK_CHARS};
+pub use coach::{
+    CoachAction, CoachError, CoachService, CoachSession, CoachSessionState, CoachTurn,
+};
 pub use drafts::{Conflict, DraftFile, DraftsError, DraftsService};
 pub use egress::{
     AuditLogger, AuditRecord, EgressBundle, EgressBundleBuilder, EgressError, EgressFragment,

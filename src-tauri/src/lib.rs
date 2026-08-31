@@ -7,16 +7,17 @@ use std::sync::Arc;
 use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
+use insightforge_core::coach::CoachTurnInput;
 use insightforge_core::egress::{
     AuditLogger, AuditRecord, EgressBundle, EgressBundleBuilder, EgressError,
 };
 use insightforge_core::references::CreateReference;
 use insightforge_core::thoughts::{ThoughtCard, ThoughtsError, ThoughtsService, UpsertThoughtCard};
 use insightforge_core::{
-    AiSampleReply, AiSettings, DraftsError, DraftsService, EventSink, KeyringStore,
-    ReferencesError, ReferencesService, Repository, SearchError, SearchService, Settings,
-    SettingsError, SourceEvent, SourceSummary, Sources, SourcesError, TestConnectionReport,
-    UreqAiHttpClient,
+    AiSampleReply, AiSettings, CoachError, CoachService, CoachSession, CoachTurn, DraftsError,
+    DraftsService, EventSink, KeyringStore, ReferencesError, ReferencesService, Repository,
+    SearchError, SearchService, Settings, SettingsError, SourceEvent, SourceSummary, Sources,
+    SourcesError, TestConnectionReport, UreqAiHttpClient,
 };
 
 /// 启动时打开的数据库，经 Tauri managed state 注入后续命令。
@@ -42,6 +43,9 @@ pub struct EgressState(pub Arc<EgressBundleBuilder>, pub Arc<AuditLogger>);
 
 /// 思考卡服务状态。
 pub struct ThoughtsState(pub Arc<ThoughtsService>);
+
+/// 陪练服务状态。
+pub struct CoachState(pub Arc<CoachService>);
 
 /// 命令错误投影：稳定 code 供前端 i18n 映射，message 供开发诊断。
 #[derive(Debug, Serialize)]
@@ -109,6 +113,15 @@ impl From<ThoughtsError> for CommandError {
     fn from(error: ThoughtsError) -> Self {
         Self {
             code: "thoughts_error",
+            message: error.to_string(),
+        }
+    }
+}
+
+impl From<CoachError> for CommandError {
+    fn from(error: CoachError) -> Self {
+        Self {
+            code: "coach_error",
             message: error.to_string(),
         }
     }
@@ -393,6 +406,46 @@ fn thoughts_delete(state: State<'_, ThoughtsState>, id: String) -> Result<(), Co
     Ok(state.0.delete(&id)?)
 }
 
+// ---- coach.*（10 号票：陪练三轮协议）----
+
+#[tauri::command]
+fn coach_start(
+    state: State<'_, CoachState>,
+    draft_id: String,
+) -> Result<CoachSession, CommandError> {
+    Ok(state.0.start(&draft_id)?)
+}
+
+#[tauri::command]
+fn coach_respond(
+    state: State<'_, CoachState>,
+    input: CoachTurnInput,
+) -> Result<CoachTurn, CommandError> {
+    Ok(state.0.respond(&input)?)
+}
+
+#[tauri::command]
+fn coach_get_session(
+    state: State<'_, CoachState>,
+    session_id: String,
+) -> Result<CoachSession, CommandError> {
+    Ok(state.0.get_session(&session_id)?)
+}
+
+#[tauri::command]
+fn coach_mark_helpful(
+    state: State<'_, CoachState>,
+    turn_id: String,
+    helpful: bool,
+) -> Result<(), CommandError> {
+    Ok(state.0.mark_helpful(&turn_id, helpful)?)
+}
+
+#[tauri::command]
+fn coach_archive(state: State<'_, CoachState>, session_id: String) -> Result<(), CommandError> {
+    Ok(state.0.archive(&session_id)?)
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -449,8 +502,8 @@ pub fn run() {
             // 09 号票：出站包与调用审计
             let egress_builder = Arc::new(EgressBundleBuilder::new(
                 Arc::clone(&db),
-                search_for_egress,
-                references_for_egress,
+                Arc::clone(&search_for_egress),
+                Arc::clone(&references_for_egress),
             ));
             let audit_logger = Arc::new(AuditLogger::new(Arc::clone(&db)));
             app.manage(EgressState(egress_builder, audit_logger));
@@ -458,6 +511,20 @@ pub fn run() {
             // 11 号票：思考卡
             let thoughts = Arc::new(ThoughtsService::new(Arc::clone(&db), Arc::clone(&drafts)));
             app.manage(ThoughtsState(thoughts));
+
+            // 10 号票：陪练服务
+            let coach = Arc::new(CoachService::new(
+                Arc::clone(&db),
+                Arc::clone(&drafts),
+                Arc::new(EgressBundleBuilder::new(
+                    Arc::clone(&db),
+                    Arc::clone(&search_for_egress),
+                    Arc::clone(&references_for_egress),
+                )),
+                Arc::new(UreqAiHttpClient::new()),
+                3,
+            ));
+            app.manage(CoachState(coach));
 
             Ok(())
         })
@@ -496,7 +563,12 @@ pub fn run() {
             thoughts_list,
             thoughts_list_by_draft,
             thoughts_list_by_source,
-            thoughts_delete
+            thoughts_delete,
+            coach_start,
+            coach_respond,
+            coach_get_session,
+            coach_mark_helpful,
+            coach_archive
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
