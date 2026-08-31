@@ -85,8 +85,10 @@ fn run_backfill_inner(
         .collect();
 
     let mut indexed_files = 0u64;
+    // 记录本轮实际重索引的文件，用于 emit 时获取准确的 fragment_count；
+    // 未变文件 fragment_count 固定为 0，避免无谓的数据库查询。
+    let mut reindexed: Vec<String> = Vec::new();
     for candidate in &candidates {
-        // 显式取消检查点：暂停/移除后该来源的补扫在下一个文件边界尽快停止。
         if cancel.is_cancelled() {
             sink(SourceEvent::BackfillCancelled {
                 source_id: source.id.clone(),
@@ -99,22 +101,28 @@ fn run_backfill_inner(
             });
         }
         if index_file(repo, &source.id, candidate, &existing)? {
-            indexed_files += 1;
-            sink(SourceEvent::FileIndexed {
-                source_id: source.id.clone(),
-                rel_path: candidate.rel_path.clone(),
-                processed: indexed_files,
-                total_files,
-                fragment_count: fragment_count_of(repo, &source.id, &candidate.rel_path)?,
-            });
+            reindexed.push(candidate.rel_path.clone());
         }
+        indexed_files += 1;
+        let fragment_count = if reindexed.contains(&candidate.rel_path) {
+            fragment_count_of(repo, &source.id, &candidate.rel_path)?
+        } else {
+            0
+        };
+        sink(SourceEvent::FileIndexed {
+            source_id: source.id.clone(),
+            rel_path: candidate.rel_path.clone(),
+            processed: indexed_files,
+            total_files,
+            fragment_count,
+        });
     }
 
     let synced_id = source.id.clone();
     repo.write(move |conn| store::touch_last_synced(conn, &synced_id))?;
     sink(SourceEvent::BackfillCompleted {
         source_id: source.id.clone(),
-        indexed_files,
+        indexed_files: total_files,
         total_files,
     });
     Ok(BackfillOutcome {
