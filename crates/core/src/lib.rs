@@ -10,6 +10,7 @@ pub mod http_client;
 mod indexer;
 pub mod repository;
 pub mod scan;
+pub mod search;
 pub mod secrets;
 pub mod settings;
 pub mod sources;
@@ -31,3 +32,4 @@ pub use settings::{
     TestConnectionReport,
 };
 pub use sources::{EventSink, SourceEvent, SourceStatus, SourceSummary, Sources, SourcesError};
+pub use search::{EvidenceCard, FragmentContext, SearchError, SearchService};

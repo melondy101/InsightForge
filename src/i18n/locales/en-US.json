@@ -64,6 +64,27 @@
       "generic": "Operation failed: {{message}}"
     }
   },
+  "search": {
+    "nav": {
+      "search": "Search"
+    },
+    "title": "Search",
+    "sourceLabel": "Source: {{name}}",
+    "placeholder": "Search keywords…",
+    "submit": "Search",
+    "loading": "Searching…",
+    "empty": "No results yet. Try a keyword.",
+    "contextTitle": "Context",
+    "contextClose": "Close",
+    "openContext": "Open context",
+    "rank": "Rank {{bm25}}",
+    "error": {
+      "repository_error": "Database operation failed",
+      "source_not_found": "Source not found or already removed",
+      "invalid_query": "Query must not be blank",
+      "generic": "Search failed: {{message}}"
+    }
+  },
   "settings": {
     "nav": {
       "settings": "Settings"

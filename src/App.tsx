@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { SearchView } from './search/SearchView';
 import { SettingsView } from './settings/SettingsView';
 import { SourcesView } from './sources/SourcesView';
 import { WorkspaceView } from './workspace/WorkspaceView';
 
-type View = 'workspace' | 'sources' | 'settings';
+type View = 'workspace' | 'sources' | 'search' | 'settings';
 
 /**
  * 桌面工作区壳：侧栏导航 + 视图区。
  * 「工作台」视图为可调三栏（05 号票）；「来源管理」视图由 02 号票交付；
- * 「设置」视图由 08 号票交付（AI BYOK、总开关）。
+ * 「检索」视图由 03 号票交付；「设置」视图由 08 号票交付（AI BYOK、总开关）。
  * 每个交互区域带 data-el 定位属性（CONTEXT.md §七）。
  */
 export function App() {
@@ -44,6 +45,14 @@ export function App() {
             <button
               type="button"
               className="sidebar__nav-item"
+              data-el="nav-search"
+              onClick={() => setView('search')}
+            >
+              {t('search.nav.search')}
+            </button>
+            <button
+              type="button"
+              className="sidebar__nav-item"
               data-el="nav-settings"
               onClick={() => setView('settings')}
             >
@@ -54,6 +63,10 @@ export function App() {
         {view === 'sources' ? (
           <section className="pane pane--sources" data-el="pane-sources">
             <SourcesView />
+          </section>
+        ) : view === 'search' ? (
+          <section className="pane pane--search" data-el="pane-search">
+            <SearchView sourceId="__demo__" sourceName={t('search.demoSource')} />
           </section>
         ) : view === 'settings' ? (
           <section className="pane pane--settings" data-el="pane-settings">
