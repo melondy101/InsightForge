@@ -298,26 +298,98 @@ fn sync_skips_unchanged_files_without_reindexing() {
     h.sources.sync(&id).expect("manual sync should succeed");
     wait_until_idle(&h.sources, &id);
 
-    let events = h.events.snapshot();
+    // 未变文件仍必须发射 FileIndexed 事件以推进进度，但 fragment_count 为 0
+    // 且不会产生新的 fragment/FTS 行。
+    let file_indexed: Vec<_> = h
+        .events
+        .snapshot()
+        .into_iter()
+        .filter(|e| matches!(e, SourceEvent::FileIndexed { .. }))
+        .collect();
+    assert_eq!(file_indexed.len(), 2, "每个文件各发一次 FileIndexed");
     assert!(
-        !events
-            .iter()
-            .any(|e| matches!(e, SourceEvent::FileIndexed { .. })),
-        "内容未变的文件绝不能重解析，got {events:?}"
+        file_indexed.iter().all(|e| matches!(e, SourceEvent::FileIndexed { fragment_count: 0, .. })),
+        "未变文件 fragment_count 必须为 0，got {file_indexed:?}"
     );
     assert!(
         matches!(
-            events.last(),
+            h.events.snapshot().last(),
             Some(SourceEvent::BackfillCompleted {
-                indexed_files: 0,
+                indexed_files: 2,
                 total_files: 2,
                 ..
             })
         ),
-        "补扫应完成且 0 个文件被重建索引，got {events:?}"
+        "补扫应完成且 indexed_files 等于 total_files，got {:?}",
+        h.events.snapshot().last()
     );
     let (files, fragments, fts) = fragment_totals(&h.db_dir.path().join("insightforge.sqlite"));
     assert_eq!((files, fragments, fts), (2, 3, 3));
+}
+
+/// 切片 5 补充：增量同步中，即使文件未变也必须发射 FileIndexed 事件并递增
+/// processed，否则前端进度条卡住。这是 ticket 17 的核心回归。
+#[test]
+fn sync_emits_progress_events_for_unchanged_files() {
+    let (h, _root, id) = seeded_source();
+    h.events.clear();
+
+    h.sources.sync(&id).expect("manual sync should succeed");
+    wait_until_idle(&h.sources, &id);
+
+    let file_indexed: Vec<SourceEvent> = h
+        .events
+        .snapshot()
+        .into_iter()
+        .filter(|e| matches!(e, SourceEvent::FileIndexed { .. }))
+        .collect();
+
+    // 两个未变文件都必须发射 FileIndexed（processed 单调递增且最终等于 total）。
+    assert_eq!(
+        file_indexed.len(),
+        2,
+        "每个未变文件都必须发射 FileIndexed 事件以推进进度，got {file_indexed:?}"
+    );
+    let processed_values: Vec<u64> = file_indexed
+        .iter()
+        .filter_map(|e| match e {
+            SourceEvent::FileIndexed { processed, .. } => Some(*processed),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        processed_values,
+        vec![1, 2],
+        "processed 必须单调递增且最终等于 total，got {processed_values:?}"
+    );
+    for event in &file_indexed {
+        assert!(
+            matches!(event, SourceEvent::FileIndexed { total_files: 2, .. }),
+            "每个 FileIndexed 事件都必须携带正确 total_files，got {event:?}"
+        );
+        assert!(
+            matches!(event, SourceEvent::FileIndexed { fragment_count: 0, .. }),
+            "未变文件不重解析，fragment_count 必须为 0，got {event:?}"
+        );
+    }
+
+    // 验收 2：未变文件不产生重复 fragment / FTS。
+    let (files, fragments, fts) = fragment_totals(&h.db_dir.path().join("insightforge.sqlite"));
+    assert_eq!((files, fragments, fts), (2, 3, 3));
+
+    // 验收 3：完成事件与 UI 状态收敛——processed 已等于 total。
+    assert!(
+        matches!(
+            h.events.snapshot().last().unwrap(),
+            SourceEvent::BackfillCompleted {
+                indexed_files: 2,
+                total_files: 2,
+                ..
+            }
+        ),
+        "完成事件必须反映 total_files 已全部处理，got {:?}",
+        h.events.snapshot().last().unwrap()
+    );
 }
 
 #[test]
@@ -336,7 +408,12 @@ fn sync_reindexes_only_the_changed_file() {
         .snapshot()
         .into_iter()
         .filter_map(|e| match e {
-            SourceEvent::FileIndexed { rel_path, .. } => Some(rel_path),
+            // 仅 fragment_count > 0 的文件在本轮被实际重索引。
+            SourceEvent::FileIndexed { rel_path, fragment_count, .. }
+                if fragment_count > 0 =>
+            {
+                Some(rel_path)
+            }
             _ => None,
         })
         .collect();
