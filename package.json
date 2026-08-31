@@ -16,7 +16,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "gate": "bun run lint && bunx tsc --noEmit && bun run test && bun run build && cargo fmt --check && cargo clippy -- -D warnings && cargo test && cargo build"
+    "gate": "bun run lint && bunx tsc --noEmit && bun run test && bun run build && cargo fmt --check && cargo clippy -- -D warnings && cargo test && cargo build",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.0",
@@ -50,6 +53,8 @@
     "typescript": "~5.9.0",
     "typescript-eslint": "^8.68.0",
     "vite": "^8.2.2",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "@playwright/test": "^1.55.0",
+    "@tauri-apps/playwright": "^2.1.0"
   }
 }
