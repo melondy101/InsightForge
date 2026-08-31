@@ -43,5 +43,16 @@
       "certificateThumbprint": null,
       "timestampUrl": "http://timestamp.digicert.com"
     }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": {
+        "default": "https://updater.insightforge.app/{{target}}/{{current_version}}"
+      },
+      "windows": {
+        "installMode": "passive",
+        "installerName": "InsightForge-Setup-{{version}}.exe"
+      }
+    }
   }
 }

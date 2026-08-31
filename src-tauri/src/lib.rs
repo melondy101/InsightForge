@@ -452,7 +452,11 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard::init())
         .plugin(
             tauri_plugin_updater::Builder::new()
-                .pubkey("YOUR_PUBLIC_KEY_HERE")
+                .pubkey(std::env::var("INSIGHTFORGE_UPDATER_PUBKEY").unwrap_or_else(|_| {
+                    #[cfg(not(debug_assertions))]
+                    panic!("INSIGHTFORGE_UPDATER_PUBKEY must be set in release builds");
+                    "dW50cnVzdGVkIGJ5IHNpbW9sZiBvciB0ZXN0".into()
+                }))
                 .build(),
         )
         .setup(|app| {
