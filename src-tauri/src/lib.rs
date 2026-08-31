@@ -7,10 +7,12 @@ use std::sync::Arc;
 use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
+use insightforge_core::references::CreateReference;
 use insightforge_core::{
-    AiSampleReply, AiSettings, DraftsError, DraftsService, EventSink, KeyringStore, Repository,
-    SearchError, SearchService, Settings, SettingsError, SourceEvent, SourceSummary, Sources,
-    SourcesError, TestConnectionReport, UreqAiHttpClient,
+    AiSampleReply, AiSettings, DraftsError, DraftsService, EventSink, KeyringStore,
+    ReferencesError, ReferencesService, Repository, SearchError, SearchService, Settings,
+    SettingsError, SourceEvent, SourceSummary, Sources, SourcesError, TestConnectionReport,
+    UreqAiHttpClient,
 };
 
 /// 启动时打开的数据库，经 Tauri managed state 注入后续命令。
@@ -27,6 +29,9 @@ pub struct SettingsState(pub Arc<Settings>);
 
 /// 草稿服务状态。
 pub struct DraftsState(pub Arc<DraftsService>);
+
+/// 引用服务状态。
+pub struct ReferencesState(pub Arc<ReferencesService>);
 
 /// 命令错误投影：稳定 code 供前端 i18n 映射，message 供开发诊断。
 #[derive(Debug, Serialize)]
@@ -65,6 +70,15 @@ impl From<SettingsError> for CommandError {
 
 impl From<DraftsError> for CommandError {
     fn from(error: DraftsError) -> Self {
+        Self {
+            code: error.code(),
+            message: error.to_string(),
+        }
+    }
+}
+
+impl From<ReferencesError> for CommandError {
+    fn from(error: ReferencesError) -> Self {
         Self {
             code: error.code(),
             message: error.to_string(),
@@ -203,14 +217,14 @@ fn ai_sample(
 // ---- drafts.*（06 号票：原子保存与冲突检测）----
 
 #[tauri::command]
-fn drafts_ensure_directory(
-    state: State<'_, DraftsState>,
-) -> Result<(), CommandError> {
+fn drafts_ensure_directory(state: State<'_, DraftsState>) -> Result<(), CommandError> {
     Ok(state.0.ensure_directory()?)
 }
 
 #[tauri::command]
-fn drafts_list(state: State<'_, DraftsState>) -> Result<Vec<insightforge_core::DraftFile>, CommandError> {
+fn drafts_list(
+    state: State<'_, DraftsState>,
+) -> Result<Vec<insightforge_core::DraftFile>, CommandError> {
     Ok(state.0.list()?)
 }
 
@@ -240,11 +254,43 @@ fn drafts_save(
 }
 
 #[tauri::command]
-fn drafts_delete(
-    state: State<'_, DraftsState>,
-    filename: String,
-) -> Result<(), CommandError> {
+fn drafts_delete(state: State<'_, DraftsState>, filename: String) -> Result<(), CommandError> {
     Ok(state.0.delete(&filename)?)
+}
+
+// ---- references.*（07 号票：证据架与不可变引用快照）----
+
+#[tauri::command]
+fn references_create(
+    state: State<'_, ReferencesState>,
+    draft_id: String,
+    fragment_id: i64,
+) -> Result<insightforge_core::Reference, CommandError> {
+    Ok(state.0.create(&CreateReference {
+        draft_id,
+        fragment_id,
+    })?)
+}
+
+#[tauri::command]
+fn references_list(
+    state: State<'_, ReferencesState>,
+    draft_id: String,
+) -> Result<Vec<insightforge_core::Reference>, CommandError> {
+    Ok(state.0.list(&draft_id)?)
+}
+
+#[tauri::command]
+fn references_adopt(state: State<'_, ReferencesState>, id: String) -> Result<(), CommandError> {
+    Ok(state.0.adopt(&id)?)
+}
+
+#[tauri::command]
+fn references_mark_source_deleted(
+    state: State<'_, ReferencesState>,
+    source_id: String,
+) -> Result<(), CommandError> {
+    Ok(state.0.mark_source_deleted(&source_id)?)
 }
 
 pub fn run() {
@@ -294,6 +340,10 @@ pub fn run() {
             let drafts = Arc::new(DraftsService::new(Arc::clone(&db), drafts_dir));
             app.manage(DraftsState(drafts));
 
+            // 07 号票：引用服务——不可变快照
+            let references = Arc::new(ReferencesService::new(Arc::clone(&db)));
+            app.manage(ReferencesState(references));
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -319,7 +369,11 @@ pub fn run() {
             drafts_create,
             drafts_open,
             drafts_save,
-            drafts_delete
+            drafts_delete,
+            references_create,
+            references_list,
+            references_adopt,
+            references_mark_source_deleted
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -222,7 +222,11 @@ pub fn mark_files_missing(
             rusqlite::params![source_id],
         )
     } else {
-        let placeholders = keep_rel_paths.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let placeholders = keep_rel_paths
+            .iter()
+            .map(|_| "?")
+            .collect::<Vec<_>>()
+            .join(",");
         let sql = format!(
             "UPDATE source_file SET status = 'missing' WHERE source_id = ?1 AND rel_path NOT IN ({})",
             placeholders

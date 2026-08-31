@@ -110,6 +110,27 @@ CREATE VIRTUAL TABLE fragment_fts USING fts5(
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 )",
     },
+    // 07 号票：草稿引用快照表（不可变引用，保留来源删除后的证据）。
+    Migration {
+        version: 11,
+        name: "create_draft_reference",
+        sql: "CREATE TABLE draft_reference (
+    id TEXT PRIMARY KEY,
+    draft_id TEXT NOT NULL REFERENCES draft(id),
+    fragment_id INTEGER NOT NULL,
+    source_id TEXT NOT NULL,
+    source_name TEXT NOT NULL,
+    rel_path TEXT NOT NULL,
+    heading_path TEXT NOT NULL,
+    snippet TEXT NOT NULL,
+    full_text TEXT NOT NULL,
+    start_line INTEGER NOT NULL,
+    end_line INTEGER NOT NULL,
+    adopted INTEGER NOT NULL DEFAULT 0,
+    source_deleted INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+)",
+    },
 ];
 
 /// 版本化迁移执行器：校验编号后把未应用的迁移按序应用到数据库。

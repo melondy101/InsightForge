@@ -8,7 +8,6 @@ use std::sync::Arc;
 
 use serde::Serialize;
 
-
 use crate::repository::Repository;
 use crate::store;
 
@@ -109,7 +108,8 @@ impl SearchService {
                  LIMIT ?3",
             )?;
 
-            let mut cursor = stmt.query(rusqlite::params![source_id_owned, trimmed_owned, limit_i64])?;
+            let mut cursor =
+                stmt.query(rusqlite::params![source_id_owned, trimmed_owned, limit_i64])?;
             let mut cards = Vec::new();
             while let Some(row) = cursor.next()? {
                 cards.push(EvidenceCard {
@@ -147,7 +147,6 @@ impl SearchService {
         let source = source.ok_or_else(|| SearchError::SourceNotFound(source_id_owned.clone()))?;
 
         let results: Vec<EvidenceCard> = self.repo.read(move |conn| {
-
             let mut stmt = conn.prepare(
                 "SELECT f.id, f.text, f.heading_path, f.start_line, f.end_line,
                         ks.name, ks.id, sf.rel_path
@@ -180,11 +179,35 @@ impl SearchService {
                             true
                         } else {
                             let ch = text_lower.chars().nth(abs_idx - 1).unwrap();
-                            ch == '\n' || ch == ' ' || ch == '\t' || ch == ',' || ch == '.' || ch == ';' || ch == ':' || ch == '，' || ch == '。' || ch == '；' || ch == '：'
+                            ch == '\n'
+                                || ch == ' '
+                                || ch == '\t'
+                                || ch == ','
+                                || ch == '.'
+                                || ch == ';'
+                                || ch == ':'
+                                || ch == '，'
+                                || ch == '。'
+                                || ch == '；'
+                                || ch == '：'
                         };
                         let after = abs_idx + q.len();
                         let after_ok = after >= text_lower.len()
-                            || matches!(text_lower.chars().next(), Some('\n' | ' ' | '\t' | ',' | '.' | ';' | ':' | '，' | '。' | '；' | '：'));
+                            || matches!(
+                                text_lower.chars().next(),
+                                Some(
+                                    '\n' | ' '
+                                        | '\t'
+                                        | ','
+                                        | '.'
+                                        | ';'
+                                        | ':'
+                                        | '，'
+                                        | '。'
+                                        | '；'
+                                        | '：'
+                                )
+                            );
                         if before && after_ok {
                             let snippet = Self::extract_snippet(&text, abs_idx, q.len());
                             results.push(EvidenceCard {
@@ -243,7 +266,6 @@ impl SearchService {
 
         let ctx = self.repo.read(move |conn| {
             let _ = &source; // suppress unused warning
-            
 
             let mut stmt = conn.prepare(
                 "SELECT f.id, f.text, f.heading_path, f.start_line, f.end_line,
@@ -254,21 +276,18 @@ impl SearchService {
                  WHERE f.id = ?1 AND sf.source_id = ?2",
             )?;
 
-            let result = stmt.query_row(
-                rusqlite::params![fragment_id, source_id_owned],
-                |row| {
-                    Ok(FragmentContext {
-                        fragment_id: row.get(0)?,
-                        source_id: row.get(6)?,
-                        source_name: row.get(5)?,
-                        rel_path: row.get(7)?,
-                        heading_path: row.get(2)?,
-                        text: row.get(1)?,
-                        start_line: row.get(3)?,
-                        end_line: row.get(4)?,
-                    })
-                },
-            );
+            let result = stmt.query_row(rusqlite::params![fragment_id, source_id_owned], |row| {
+                Ok(FragmentContext {
+                    fragment_id: row.get(0)?,
+                    source_id: row.get(6)?,
+                    source_name: row.get(5)?,
+                    rel_path: row.get(7)?,
+                    heading_path: row.get(2)?,
+                    text: row.get(1)?,
+                    start_line: row.get(3)?,
+                    end_line: row.get(4)?,
+                })
+            });
 
             Ok(result.ok())
         })?;

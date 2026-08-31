@@ -167,11 +167,7 @@ impl DraftsService {
     }
 
     /// 原子保存：检测外部修改，有冲突则返回 Conflict。
-    pub fn save(
-        &self,
-        filename: &str,
-        content: &str,
-    ) -> Result<DraftFile, DraftsError> {
+    pub fn save(&self, filename: &str, content: &str) -> Result<DraftFile, DraftsError> {
         self.ensure_directory()?;
         let path = self.drafts_dir.join(filename);
         if !path.exists() {
@@ -182,9 +178,7 @@ impl DraftsService {
 
         // 尝试从数据库读取已知基线
         let known = self.find_draft(filename)?;
-        let baseline = known
-            .as_ref()
-            .filter(|d| d.path == path.to_string_lossy());
+        let baseline = known.as_ref().filter(|d| d.path == path.to_string_lossy());
 
         // 如果数据库有基线，比对当前文件是否被外部修改
         if let Some(bl) = baseline {
@@ -193,12 +187,15 @@ impl DraftsService {
                 || current_baseline.hash != bl.baseline_hash
             {
                 let external_content = std::fs::read_to_string(&path)?;
-                return Err(DraftsError::Conflict(serde_json::to_string(&Conflict {
-                    message: "file modified externally since last open/save".to_string(),
-                    baseline_content: bl.baseline_hash.clone(),
-                    local_content: content.to_string(),
-                    external_content,
-                }).unwrap()));
+                return Err(DraftsError::Conflict(
+                    serde_json::to_string(&Conflict {
+                        message: "file modified externally since last open/save".to_string(),
+                        baseline_content: bl.baseline_hash.clone(),
+                        local_content: content.to_string(),
+                        external_content,
+                    })
+                    .unwrap(),
+                ));
             }
         }
 
@@ -237,13 +234,17 @@ impl DraftsService {
         let new_baseline = self.read_baseline(&path)?;
         let now = now_iso();
         let draft = DraftFile {
-            id: baseline.map(|b| b.id.clone()).unwrap_or_else(|| generate_id(filename)),
+            id: baseline
+                .map(|b| b.id.clone())
+                .unwrap_or_else(|| generate_id(filename)),
             path: path.to_string_lossy().to_string(),
             filename: filename.to_string(),
             baseline_hash: new_baseline.hash,
             baseline_mtime_ms: new_baseline.mtime_ms,
             baseline_size: new_baseline.size,
-            created_at: baseline.map(|b| b.created_at.clone()).unwrap_or_else(|| now.clone()),
+            created_at: baseline
+                .map(|b| b.created_at.clone())
+                .unwrap_or_else(|| now.clone()),
             updated_at: now,
         };
         self.upsert_draft(&draft)?;
@@ -330,7 +331,10 @@ impl DraftsService {
     fn remove_draft(&self, filename: &str) -> Result<(), DraftsError> {
         let filename = filename.to_string();
         self.repo.write(move |conn| {
-            conn.execute("DELETE FROM draft WHERE filename = ?1", rusqlite::params![filename])?;
+            conn.execute(
+                "DELETE FROM draft WHERE filename = ?1",
+                rusqlite::params![filename],
+            )?;
             Ok(())
         })?;
         Ok(())
@@ -365,6 +369,9 @@ fn generate_id(filename: &str) -> String {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     filename.hash(&mut hasher);
-    Utc::now().timestamp_nanos_opt().unwrap_or(0).hash(&mut hasher);
+    Utc::now()
+        .timestamp_nanos_opt()
+        .unwrap_or(0)
+        .hash(&mut hasher);
     format!("{:x}", hasher.finish())
 }

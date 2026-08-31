@@ -158,5 +158,16 @@
     "conflictKeepLocal": "Keep local",
     "conflictAdoptExternal": "Adopt external",
     "conflictSaveAs": "Save as…"
+  },
+  "references": {
+    "nav": {
+      "references": "References"
+    },
+    "title": "References",
+    "empty": "No references yet.",
+    "dismiss": "Dismiss",
+    "adopt": "Adopt",
+    "sourceDeleted": "Source deleted",
+    "adopted": "Adopted"
   }
 }

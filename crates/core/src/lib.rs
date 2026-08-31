@@ -9,6 +9,7 @@ pub mod drafts;
 pub mod executor;
 pub mod http_client;
 mod indexer;
+pub mod references;
 pub mod repository;
 pub mod scan;
 pub mod search;
@@ -18,13 +19,16 @@ pub mod sources;
 mod store;
 
 pub use chunking::{chunk_markdown, chunk_plain, Chunk, ChunkConfig, DEFAULT_MAX_CHUNK_CHARS};
+pub use drafts::{Conflict, DraftFile, DraftsError, DraftsService};
 pub use executor::{CancelToken, Executor, ExecutorError};
 pub use http_client::{AiHttpClient, HttpClientError, HttpRequest, HttpResponse, UreqAiHttpClient};
+pub use references::{Reference, ReferencesError, ReferencesService};
 pub use repository::{Migration, Migrator, Repository, RepositoryError};
 pub use scan::{
     canonical_path, file_identity, normalize_root, open_read_only, stays_within_root,
     validate_rel_path, IgnoreMatcher, ScanError, ALLOWED_EXTENSIONS, DEFAULT_IGNORE_GLOBS,
 };
+pub use search::{EvidenceCard, FragmentContext, SearchError, SearchService};
 pub use secrets::{
     KeyringStore, MemorySecretStore, SecretStore, SecretsError, API_KEY_ACCOUNT, SERVICE_NAME,
 };
@@ -33,6 +37,6 @@ pub use settings::{
     TestConnectionReport,
 };
 pub use sources::{EventSink, SourceEvent, SourceStatus, SourceSummary, Sources, SourcesError};
-pub use search::{EvidenceCard, FragmentContext, SearchError, SearchService};
-pub use drafts::{Conflict, DraftFile, DraftsError, DraftsService};
-pub use store::{files_of_source_with_identity, mark_files_missing, rename_file, StoredFileWithIdentity};
+pub use store::{
+    files_of_source_with_identity, mark_files_missing, rename_file, StoredFileWithIdentity,
+};
