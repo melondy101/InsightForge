@@ -308,7 +308,13 @@ fn sync_skips_unchanged_files_without_reindexing() {
         .collect();
     assert_eq!(file_indexed.len(), 2, "每个文件各发一次 FileIndexed");
     assert!(
-        file_indexed.iter().all(|e| matches!(e, SourceEvent::FileIndexed { fragment_count: 0, .. })),
+        file_indexed.iter().all(|e| matches!(
+            e,
+            SourceEvent::FileIndexed {
+                fragment_count: 0,
+                ..
+            }
+        )),
         "未变文件 fragment_count 必须为 0，got {file_indexed:?}"
     );
     assert!(
@@ -368,7 +374,13 @@ fn sync_emits_progress_events_for_unchanged_files() {
             "每个 FileIndexed 事件都必须携带正确 total_files，got {event:?}"
         );
         assert!(
-            matches!(event, SourceEvent::FileIndexed { fragment_count: 0, .. }),
+            matches!(
+                event,
+                SourceEvent::FileIndexed {
+                    fragment_count: 0,
+                    ..
+                }
+            ),
             "未变文件不重解析，fragment_count 必须为 0，got {event:?}"
         );
     }
@@ -409,11 +421,11 @@ fn sync_reindexes_only_the_changed_file() {
         .into_iter()
         .filter_map(|e| match e {
             // 仅 fragment_count > 0 的文件在本轮被实际重索引。
-            SourceEvent::FileIndexed { rel_path, fragment_count, .. }
-                if fragment_count > 0 =>
-            {
-                Some(rel_path)
-            }
+            SourceEvent::FileIndexed {
+                rel_path,
+                fragment_count,
+                ..
+            } if fragment_count > 0 => Some(rel_path),
             _ => None,
         })
         .collect();
