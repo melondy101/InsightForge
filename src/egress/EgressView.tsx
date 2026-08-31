@@ -43,7 +43,7 @@ export function EgressView() {
       </div>
 
       <div className="egress-view__audit" data-el="egress-audit">
-        <h4>Audit Log</h4>
+        <h4>{t('egress.auditTitle')}</h4>
         <ul className="egress-view__audit-list" data-el="egress-audit-list">
           {records.map((record) => (
             <li key={record.id} className="egress-view__audit-item" data-el="egress-audit-item">

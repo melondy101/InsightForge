@@ -200,7 +200,8 @@
     "fragmentCount": "Fragment count",
     "model": "Model",
     "createdAt": "Created at",
-    "status": "Status"
+    "status": "Status",
+    "auditTitle": "Audit Log"
   },
   "export": {
     "nav": {

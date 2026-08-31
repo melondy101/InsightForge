@@ -200,7 +200,8 @@
     "fragmentCount": "片段数量",
     "model": "模型",
     "createdAt": "创建时间",
-    "status": "状态"
+    "status": "状态",
+    "auditTitle": "审计日志"
   },
   "export": {
     "nav": {
