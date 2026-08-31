@@ -199,5 +199,17 @@
     "model": "Model",
     "createdAt": "Created at",
     "status": "Status"
+  },
+  "export": {
+    "nav": {
+      "export": "Export"
+    },
+    "title": "Export",
+    "empty": "No export yet.",
+    "dismiss": "Dismiss",
+    "accentColor": "Accent color",
+    "exportButton": "Export HTML",
+    "exporting": "Exporting…",
+    "hint": "Exported HTML uses Clean Reading theme."
   }
 }

@@ -29,7 +29,12 @@
     "i18next": "^26.4.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-i18next": "^17.0.12"
+    "react-i18next": "^17.0.12",
+    "rehype-sanitize": "^6.0.0",
+    "rehype-stringify": "^10.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",
