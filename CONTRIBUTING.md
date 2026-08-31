@@ -10,8 +10,11 @@
 # 安装依赖
 bun install
 
-# 启动开发服务器
+# 启动前端开发服务器（Vite）
 bun run dev
+
+# 启动桌面应用开发模式（Vite + Tauri 2 壳）
+bun run tauri dev
 
 # 运行测试
 bun run test
@@ -20,13 +23,13 @@ bun run test
 bun run lint
 
 # 类型检查
-./node_modules/.bin/tsc --noEmit
+bunx tsc --noEmit
 
-# Web 构建
+# 前端构建（Vite -> dist/）
 bun run build
 
-# 桌面端静态导出（需 Tauri 环境）
-bun run desktop:export
+# 提交前一键门禁（前端 lint/tsc/test/build + Rust fmt/clippy/test/build）
+bun run gate
 ```
 
 ---
@@ -67,28 +70,42 @@ bun run test:watch
 - **纯函数优先**：核心逻辑放在 `src/lib/zhizhi/*.ts`，便于测试和复用。
 - **禁止水平切片**：不要先写完所有测试再写所有实现，采用垂直切片。
 - **i18n**：用户可见文案一律走 `react-i18next`，禁止硬编码。
-- **服务端 AI 客户端**：`src/lib/llm/client.ts` 绝不 import 到 `"use client"` 文件。
 - **交互元素**：带 `data-el="..."` 便于定位与测试。
 
 ---
 
-## 5. 提交前三绿
+## 5. 提交前三绿（前端）
 
-在推送前，确保以下命令全部通过：
+在推送前，确保以下前端命令全部通过：
 
 ```bash
 bun run test              # 全过
-./node_modules/.bin/tsc --noEmit  # 0 错误
+bunx tsc --noEmit         # 0 错误
 bun run lint              # 0 error / 0 warning
 ```
 
 ---
 
-## 6. 文档同步
+## 6. Rust 门禁
+
+提交 Rust 变更前，确保以下命令全部通过：
+
+```bash
+cargo fmt --check         # 格式规范
+cargo clippy -- -D warnings  # 0 lint 警告
+cargo test                # 全过
+cargo build               # 编译通过
+```
+
+> 完整前端 + Rust 门禁可直接运行 `bun run gate`。
+
+---
+
+## 7. 文档同步
 
 修改功能或添加能力时，同步更新以下文档（如适用）：
 
-- `README.md` — 用户入口、安装/运行步骤、环境变量、API 路由
+- `README.md` — 用户入口、安装/运行步骤
 - `CONTEXT.md` — 领域术语、页面地图、动作定义
 - `docs/PRD.md` — 产品需求与功能模块
 - `docs/ARCHITECTURE.md` — 架构原则、数据流、安全设计
@@ -97,7 +114,7 @@ bun run lint              # 0 error / 0 warning
 
 ---
 
-## 7. 安全与合规
+## 8. 安全与合规
 
 - 禁止提交密钥、凭证或敏感配置。
 - 代转路由的 BYOK key 仅在单次请求内存中使用，绝不落盘 / 写日志。
@@ -105,20 +122,20 @@ bun run lint              # 0 error / 0 warning
 
 ---
 
-## 8. 桌面端开发
+## 9. 桌面端开发
 
-桌面端基于 Tauri v2，构建流程见 `README.md`「桌面端（Tauri）」章节。
+桌面端基于 Tauri 2 + Rust 本地核心。
 
 ```bash
-bun run desktop:export   # 生成静态站点到 out/
-bun run tauri dev        # Tauri 开发模式
+bun run tauri dev        # 开发模式（Vite dev server + Tauri 2 壳）
+bun run tauri build      # 打包桌面应用（NSIS/MSI）
 ```
 
-注意：桌面端静态导出会临时移出 `src/app/api`，因此桌面端构建不包含服务端 API routes。
+SQLite 数据库由 Rust repository 在首次启动时于应用数据目录自动创建（`insightforge.sqlite`）并执行版本化迁移，无独立迁移命令。详见 `src-tauri/` 与 `docs/ARCHITECTURE.md`。
 
 ---
 
-## 9. 行为准则
+## 10. 行为准则
 
 - 尊重反代写理念：AI 只出骨架，绝不代写成段文字。
 - 保持文档与代码同步，避免知识腐烂。
