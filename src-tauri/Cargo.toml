@@ -12,4 +12,5 @@ insightforge-core = { path = "../crates/core" }
 tauri = { version = "2", features = [] }
 tauri-plugin-clipboard = "2"
 tauri-plugin-dialog = "2"
+tauri-plugin-updater = "2"
 serde = { version = "1", features = ["derive"] }
