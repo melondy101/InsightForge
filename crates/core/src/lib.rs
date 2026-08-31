@@ -35,3 +35,4 @@ pub use settings::{
 pub use sources::{EventSink, SourceEvent, SourceStatus, SourceSummary, Sources, SourcesError};
 pub use search::{EvidenceCard, FragmentContext, SearchError, SearchService};
 pub use drafts::{Conflict, DraftFile, DraftsError, DraftsService};
+pub use store::{files_of_source_with_identity, mark_files_missing, rename_file, StoredFileWithIdentity};

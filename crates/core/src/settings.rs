@@ -434,7 +434,7 @@ fn get_setting(conn: &Connection, key: &str) -> rusqlite::Result<Option<String>>
     }
 }
 
-fn set_setting(conn: &Connection, key: &str, value: &str) -> rusqlite::Result<()> {
+pub fn set_setting(conn: &Connection, key: &str, value: &str) -> rusqlite::Result<()> {
     conn.execute(
         "INSERT INTO app_setting (key, value) VALUES (?1, ?2)
          ON CONFLICT (key) DO UPDATE SET value = excluded.value,
@@ -444,7 +444,7 @@ fn set_setting(conn: &Connection, key: &str, value: &str) -> rusqlite::Result<()
     Ok(())
 }
 
-fn delete_setting(conn: &Connection, key: &str) -> rusqlite::Result<()> {
+pub fn delete_setting(conn: &Connection, key: &str) -> rusqlite::Result<()> {
     conn.execute(
         "DELETE FROM app_setting WHERE key = ?1",
         rusqlite::params![key],

@@ -12,12 +12,18 @@ use std::sync::{Arc, Mutex};
 use serde::Serialize;
 use thiserror::Error;
 use uuid::Uuid;
+use walkdir::WalkDir;
 
 use crate::executor::{CancelToken, Executor};
 use crate::indexer;
 use crate::repository::Repository;
-use crate::scan::{normalize_root, IgnoreMatcher, DEFAULT_IGNORE_GLOBS};
-use crate::store::{self, StoredSource};
+use crate::scan::{
+    canonical_path, file_identity, normalize_root, stays_within_root, validate_rel_path,
+    IgnoreMatcher, ALLOWED_EXTENSIONS, DEFAULT_IGNORE_GLOBS,
+};
+use crate::store::{
+    self, StoredFileWithIdentity, StoredSource,
+};
 
 /// 进度事件 sink：Tauri 壳接事件通道，测试接收集器。
 pub type EventSink = Arc<dyn Fn(SourceEvent) + Send + Sync>;
@@ -256,6 +262,118 @@ impl Sources {
         self.spawn_backfill(&source)
     }
 
+    /// 变更收敛：扫描当前目录，比对数据库记录，处理重命名/删除/新增/修改。
+    pub fn reconcile(&self, id: &str) -> Result<(), SourcesError> {
+        let source = self
+            .repo
+            .read({
+                let id = id.to_string();
+                move |conn| store::get_source(conn, &id)
+            })?
+            .ok_or_else(|| SourcesError::SourceNotFound(id.to_string()))?;
+        if source.paused {
+            return Err(SourcesError::SourcePaused(id.to_string()));
+        }
+
+        let root = normalize_root(Path::new(&source.root_path))?;
+        let matcher = IgnoreMatcher::new(&source.ignore_globs)?;
+        let current_files = collect_current_files(&root, &matcher)?;
+
+        let source_id = source.id.clone();
+        let db_files: Vec<StoredFileWithIdentity> = self
+            .repo
+            .read(move |conn| store::files_of_source_with_identity(conn, &source_id))?
+            .into_iter()
+            .filter(|f| f.file_identity != "missing")
+            .collect();
+
+        let mut db_by_identity: HashMap<String, StoredFileWithIdentity> = db_files
+            .iter()
+            .filter(|f| !f.file_identity.is_empty())
+            .map(|f| (f.file_identity.clone(), f.clone()))
+            .collect();
+
+        let db_by_rel: HashMap<String, StoredFileWithIdentity> = db_files
+            .iter()
+            .map(|f| (f.rel_path.clone(), f.clone()))
+            .collect();
+
+        let mut current_rel_paths = Vec::new();
+        let mut renamed_from: HashMap<String, String> = HashMap::new();
+
+        for (rel_path, identity) in current_files {
+            current_rel_paths.push(rel_path.clone());
+            if let Some(db_file) = db_by_rel.get(&rel_path) {
+                if db_file.file_identity == identity {
+                    continue;
+                }
+            } else if let Some((_, db_file)) = db_by_identity.remove_entry(&identity) {
+                renamed_from.insert(rel_path.clone(), db_file.rel_path.clone());
+                continue;
+            }
+        }
+
+        let source_id_for_rename = source.id.clone();
+        self.repo.write(move |conn| {
+            for (new_rel, old_rel) in renamed_from {
+                store::rename_file(conn, &source_id_for_rename, &old_rel, &new_rel)?;
+            }
+            Ok(())
+        })?;
+
+        let keep_rel_paths: Vec<String> = current_rel_paths.clone();
+        let source_id_for_mark = source.id.clone();
+        let paths_for_mark = keep_rel_paths.clone();
+        self.repo
+            .write(move |conn| store::mark_files_missing(conn, &source_id_for_mark, &paths_for_mark))?;
+
+        self.spawn_backfill(&source)
+    }
+
+    /// 重建索引：清空片段与 source_file，随后全量补扫。
+    pub fn rebuild_index(&self, id: &str) -> Result<(), SourcesError> {
+        let source = self
+            .repo
+            .read({
+                let id = id.to_string();
+                move |conn| store::get_source(conn, &id)
+            })?
+            .ok_or_else(|| SourcesError::SourceNotFound(id.to_string()))?;
+        if source.paused {
+            return Err(SourcesError::SourcePaused(id.to_string()));
+        }
+
+        let source_id_for_delete = source.id.clone();
+        self.repo
+            .write(move |conn| store::delete_source_files(conn, &source_id_for_delete))?;
+
+        self.spawn_backfill(&source)
+    }
+
+    /// 设置同步间隔（分钟）。返回更新后的来源摘要。
+    pub fn set_sync_interval(
+        &self,
+        id: &str,
+        interval_minutes: u32,
+    ) -> Result<SourceSummary, SourcesError> {
+        let source = self
+            .repo
+            .read({
+                let id = id.to_string();
+                move |conn| store::get_source(conn, &id)
+            })?
+            .ok_or_else(|| SourcesError::SourceNotFound(id.to_string()))?;
+
+        let key = format!("sources.sync_interval.{}", source.id);
+        let value = interval_minutes.to_string();
+        self.repo.write(move |conn| {
+            crate::settings::set_setting(conn, &key, &value)?;
+            Ok(())
+        })?;
+
+        self.summary_of(&source)
+    }
+
     /// 移除来源：先让进行中的补扫停止，再清理索引记录。
     /// 只删索引记录，绝不动源文件。
     pub fn remove(&self, id: &str) -> Result<(), SourcesError> {
@@ -348,6 +466,68 @@ impl Sources {
             last_synced_at: source.last_synced_at.clone(),
         })
     }
+}
+
+// ---------- 04 号票：变更收敛辅助函数 ----------
+
+/// 收集当前目录下的所有候选文件（与 indexer 相同的过滤逻辑）。
+fn collect_current_files(
+    root: &Path,
+    matcher: &IgnoreMatcher,
+) -> Result<HashMap<String, String>, SourcesError> {
+    let mut files = HashMap::new();
+    let mut walker = WalkDir::new(root).follow_links(false).into_iter();
+    while let Some(entry) = walker.next() {
+        let entry =
+            entry.map_err(|err| SourcesError::Io(std::io::Error::other(err.to_string())))?;
+        if entry.depth() == 0 {
+            continue;
+        }
+        let file_type = entry.file_type();
+        let path = entry.path().to_path_buf();
+        if file_type.is_dir() {
+            let rel = rel_string(&path, root)?;
+            if matcher.is_ignored(&rel) {
+                walker.skip_current_dir();
+            }
+            continue;
+        }
+        let rel = rel_string(&path, root)?;
+        if matcher.is_ignored(&rel) {
+            continue;
+        }
+        let extension_ok = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(str::to_ascii_lowercase)
+            .is_some_and(|ext| ALLOWED_EXTENSIONS.contains(&ext.as_str()));
+        if !extension_ok {
+            continue;
+        }
+        if file_type.is_symlink() {
+            let canonical = canonical_path(&path)?;
+            if !stays_within_root(root, &canonical) {
+                continue;
+            }
+        }
+        let identity = file_identity_of(&path)?;
+        files.insert(rel, identity);
+    }
+    Ok(files)
+}
+
+fn rel_string(path: &Path, root: &Path) -> Result<String, SourcesError> {
+    let rel = path
+        .strip_prefix(root)
+        .map_err(|_| SourcesError::InvalidRelPath(path.display().to_string()))?;
+    Ok(validate_rel_path(&rel.to_string_lossy())?)
+}
+
+/// 计算文件的 identity（简化版：Windows 用 file index + volume，其他用 size+mtime）。
+fn file_identity_of(path: &Path) -> Result<String, SourcesError> {
+    let file = std::fs::File::open(path)?;
+    let meta = file.metadata()?;
+    Ok(file_identity(&file, &meta))
 }
 
 impl Drop for Sources {
