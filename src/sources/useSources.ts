@@ -24,6 +24,9 @@ export interface SourcesActions {
   pause: (id: string, paused: boolean) => Promise<void>;
   remove: (id: string) => Promise<void>;
   sync: (id: string) => Promise<void>;
+  reconcile: (id: string) => Promise<void>;
+  rebuildIndex: (id: string) => Promise<void>;
+  setSyncInterval: (id: string, intervalMinutes: number) => Promise<void>;
   dismissError: () => void;
 }
 
@@ -126,6 +129,10 @@ export function useSources(): SourcesModel {
       pause: (id, paused) => run(() => sourcesApi.pause(id, paused)),
       remove: (id) => run(() => sourcesApi.remove(id)),
       sync: (id) => run(() => sourcesApi.sync(id)),
+      reconcile: (id) => run(() => sourcesApi.reconcile(id)),
+      rebuildIndex: (id) => run(() => sourcesApi.rebuildIndex(id)),
+      setSyncInterval: (id, intervalMinutes) =>
+        run(() => sourcesApi.setSyncInterval(id, intervalMinutes)),
       dismissError: () => setError(null),
     };
   }, [refresh]);

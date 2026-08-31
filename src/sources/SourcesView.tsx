@@ -105,10 +105,12 @@ interface SourceRowProps {
   t: (key: string, options?: Record<string, unknown>) => string;
   onPause: (id: string, paused: boolean) => void;
   onSync: (id: string) => void;
+  onReconcile: (id: string) => void;
+  onRebuildIndex: (id: string) => void;
   onRemove: (id: string) => void;
 }
 
-function SourceRow({ source, progress, t, onPause, onSync, onRemove }: SourceRowProps) {
+function SourceRow({ source, progress, t, onPause, onSync, onReconcile, onRebuildIndex, onRemove }: SourceRowProps) {
   const status = source.paused
     ? t('sources.status.paused')
     : source.status === 'indexing'
@@ -141,6 +143,12 @@ function SourceRow({ source, progress, t, onPause, onSync, onRemove }: SourceRow
       <span className="sources__row-actions" data-el="sources-row-actions">
         <button type="button" data-el="sources-sync-btn" onClick={() => onSync(source.id)}>
           {t('sources.sync')}
+        </button>
+        <button type="button" data-el="sources-reconcile-btn" onClick={() => onReconcile(source.id)}>
+          {t('sources.reconcile')}
+        </button>
+        <button type="button" data-el="sources-rebuild-btn" onClick={() => onRebuildIndex(source.id)}>
+          {t('sources.rebuildIndex')}
         </button>
         {source.paused ? (
           <button type="button" data-el="sources-resume-btn" onClick={() => onPause(source.id, false)}>
@@ -214,6 +222,8 @@ export function SourcesView() {
                   t={t}
                   onPause={(id, paused) => void actions.pause(id, paused)}
                   onSync={(id) => void actions.sync(id)}
+                  onReconcile={(id) => void actions.reconcile(id)}
+                  onRebuildIndex={(id) => void actions.rebuildIndex(id)}
                   onRemove={(id) => void actions.remove(id)}
                 />
               ))}

@@ -62,7 +62,11 @@
       "io_error": "读取文件失败",
       "cancelled": "操作已取消",
       "generic": "操作失败：{{message}}"
-    }
+    },
+    "reconcile": "收敛变更",
+    "rebuildIndex": "重建索引",
+    "syncInterval": "同步间隔",
+    "syncIntervalMinutes": "{{minutes}} 分钟"
   },
   "search": {
     "nav": {

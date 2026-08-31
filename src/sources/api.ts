@@ -65,4 +65,8 @@ export const sourcesApi = {
   pause: (id: string, paused: boolean) => call<SourceSummary>('sources_pause', { id, paused }),
   remove: (id: string) => call<void>('sources_remove', { id }),
   sync: (id: string) => call<void>('sources_sync', { id }),
+  reconcile: (id: string) => call<void>('sources_reconcile', { id }),
+  rebuildIndex: (id: string) => call<void>('sources_rebuild_index', { id }),
+  setSyncInterval: (id: string, intervalMinutes: number) =>
+    call<SourceSummary>('sources_set_sync_interval', { id, intervalMinutes }),
 };

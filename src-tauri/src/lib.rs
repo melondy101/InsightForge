@@ -106,6 +106,25 @@ fn sources_sync(state: State<'_, SourcesState>, id: String) -> Result<(), Comman
     Ok(state.0.sync(&id)?)
 }
 
+#[tauri::command]
+fn sources_reconcile(state: State<'_, SourcesState>, id: String) -> Result<(), CommandError> {
+    Ok(state.0.reconcile(&id)?)
+}
+
+#[tauri::command]
+fn sources_rebuild_index(state: State<'_, SourcesState>, id: String) -> Result<(), CommandError> {
+    Ok(state.0.rebuild_index(&id)?)
+}
+
+#[tauri::command]
+fn sources_set_sync_interval(
+    state: State<'_, SourcesState>,
+    id: String,
+    interval_minutes: u32,
+) -> Result<SourceSummary, CommandError> {
+    Ok(state.0.set_sync_interval(&id, interval_minutes)?)
+}
+
 // ---- search.*（03 号票：中文关键词检索与证据卡）----
 
 #[tauri::command]
@@ -283,6 +302,9 @@ pub fn run() {
             sources_pause,
             sources_remove,
             sources_sync,
+            sources_reconcile,
+            sources_rebuild_index,
+            sources_set_sync_interval,
             search_query,
             search_open_context,
             settings_get,

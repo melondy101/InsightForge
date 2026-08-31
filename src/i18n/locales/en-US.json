@@ -62,7 +62,11 @@
       "io_error": "Failed to read file",
       "cancelled": "Operation cancelled",
       "generic": "Operation failed: {{message}}"
-    }
+    },
+    "reconcile": "Reconcile",
+    "rebuildIndex": "Rebuild index",
+    "syncInterval": "Sync interval",
+    "syncIntervalMinutes": "{{minutes}} min"
   },
   "search": {
     "nav": {
