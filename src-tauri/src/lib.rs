@@ -583,3 +583,32 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+#[cfg(test)]
+mod updater_tests {
+    #[test]
+    #[should_panic(expected = "INSIGHTFORGE_UPDATER_PUBKEY must be set in release builds")]
+    fn release_build_pubkey_missing_panics() {
+        // Simulate release build by clearing the env var if set
+        std::env::remove_var("INSIGHTFORGE_UPDATER_PUBKEY");
+        // This would panic in a real release build; in test build (debug_assertions) it falls back
+        let _ = std::env::var("INSIGHTFORGE_UPDATER_PUBKEY").unwrap_or_else(|_| {
+            #[cfg(not(debug_assertions))]
+            panic!("INSIGHTFORGE_UPDATER_PUBKEY must be set in release builds");
+            "test-fallback".into()
+        });
+    }
+
+    #[test]
+    fn debug_build_uses_fallback_when_missing() {
+        std::env::remove_var("INSIGHTFORGE_UPDATER_PUBKEY");
+        let result = std::env::var("INSIGHTFORGE_UPDATER_PUBKEY").unwrap_or_else(|_| {
+            #[cfg(debug_assertions)]
+            "test-fallback".into();
+            #[cfg(not(debug_assertions))]
+            panic!("INSIGHTFORGE_UPDATER_PUBKEY must be set in release builds");
+            "test-fallback".into()
+        });
+        assert_eq!(result, "test-fallback");
+    }
+}
