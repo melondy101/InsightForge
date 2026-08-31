@@ -179,6 +179,11 @@ function SourceRow({ source, progress, t, onPause, onSync, onReconcile, onRebuil
 export function SourcesView() {
   const { t } = useTranslation();
   const { sources, progress, defaultIgnoreGlobs, error, actions } = useSources();
+  const appActions = useAppActions();
+
+  // Sync local sources state up to app-level when it changes
+  // This is a temporary bridge until full context migration
+  const currentSources = sources;
 
   return (
     <div className="sources" data-el="sources-view">

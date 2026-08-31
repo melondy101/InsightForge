@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useDrafts } from './useDrafts';
+import { useAppState, useAppActions } from '../AppStateContext';
 
 function DraftsListView({ drafts, onOpen }: { drafts: { filename: string; updatedAt: string }[]; onOpen: (f: string) => void }) {
   const { t } = useTranslation();
@@ -59,6 +60,7 @@ export function DraftsView() {
     error,
     actions,
   } = useDrafts();
+  const appActions = useAppActions();
 
   const handleCreate = async () => {
     const filename = prompt(t('drafts.promptFilename') as string) ?? '';
