@@ -21,9 +21,7 @@ use crate::scan::{
     canonical_path, file_identity, normalize_root, stays_within_root, validate_rel_path,
     IgnoreMatcher, ALLOWED_EXTENSIONS, DEFAULT_IGNORE_GLOBS,
 };
-use crate::store::{
-    self, StoredFileWithIdentity, StoredSource,
-};
+use crate::store::{self, StoredFileWithIdentity, StoredSource};
 
 /// 进度事件 sink：Tauri 壳接事件通道，测试接收集器。
 pub type EventSink = Arc<dyn Fn(SourceEvent) + Send + Sync>;
@@ -324,8 +322,9 @@ impl Sources {
         let keep_rel_paths: Vec<String> = current_rel_paths.clone();
         let source_id_for_mark = source.id.clone();
         let paths_for_mark = keep_rel_paths.clone();
-        self.repo
-            .write(move |conn| store::mark_files_missing(conn, &source_id_for_mark, &paths_for_mark))?;
+        self.repo.write(move |conn| {
+            store::mark_files_missing(conn, &source_id_for_mark, &paths_for_mark)
+        })?;
 
         self.spawn_backfill(&source)
     }

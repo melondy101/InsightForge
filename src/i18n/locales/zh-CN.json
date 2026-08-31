@@ -158,5 +158,16 @@
     "conflictKeepLocal": "保留本地修改",
     "conflictAdoptExternal": "采用外部修改",
     "conflictSaveAs": "另存为…"
+  },
+  "references": {
+    "nav": {
+      "references": "引用"
+    },
+    "title": "引用",
+    "empty": "还没有引用。",
+    "dismiss": "关闭",
+    "adopt": "采用",
+    "sourceDeleted": "来源已删除",
+    "adopted": "已采用"
   }
 }
