@@ -8,8 +8,9 @@ use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
 use insightforge_core::{
-    AiSampleReply, AiSettings, EventSink, KeyringStore, Repository, Settings, SettingsError,
-    SourceEvent, SourceSummary, Sources, SourcesError, TestConnectionReport, UreqAiHttpClient,
+    AiSampleReply, AiSettings, EventSink, KeyringStore, Repository, SearchError, SearchService,
+    Settings, SettingsError, SourceEvent, SourceSummary, Sources, SourcesError, TestConnectionReport,
+    UreqAiHttpClient,
 };
 
 /// 启动时打开的数据库，经 Tauri managed state 注入后续命令。
@@ -17,6 +18,9 @@ pub struct WorkspaceDb(pub Arc<Repository>);
 
 /// 来源管理服务状态。
 pub struct SourcesState(pub Arc<Sources>);
+
+/// 检索服务状态。
+pub struct SearchState(pub Arc<SearchService>);
 
 /// 设置服务状态：非敏感配置走 SQLite，API Key 走 OS 凭据库。
 pub struct SettingsState(pub Arc<Settings>);
@@ -31,6 +35,15 @@ pub struct CommandError {
 
 impl From<SourcesError> for CommandError {
     fn from(error: SourcesError) -> Self {
+        Self {
+            code: error.code(),
+            message: error.to_string(),
+        }
+    }
+}
+
+impl From<SearchError> for CommandError {
+    fn from(error: SearchError) -> Self {
         Self {
             code: error.code(),
             message: error.to_string(),
@@ -79,6 +92,27 @@ fn sources_remove(state: State<'_, SourcesState>, id: String) -> Result<(), Comm
 #[tauri::command]
 fn sources_sync(state: State<'_, SourcesState>, id: String) -> Result<(), CommandError> {
     Ok(state.0.sync(&id)?)
+}
+
+// ---- search.*（03 号票：中文关键词检索与证据卡）----
+
+#[tauri::command]
+fn search_query(
+    state: State<'_, SearchState>,
+    source_id: String,
+    query: String,
+    limit: usize,
+) -> Result<Vec<insightforge_core::EvidenceCard>, CommandError> {
+    Ok(state.0.query(&source_id, &query, limit)?)
+}
+
+#[tauri::command]
+fn search_open_context(
+    state: State<'_, SearchState>,
+    source_id: String,
+    fragment_id: i64,
+) -> Result<Option<insightforge_core::FragmentContext>, CommandError> {
+    Ok(state.0.open_context(&source_id, fragment_id)?)
 }
 
 // ---- settings.* / ai_sample（08 号票：BYOK 凭据库与 AI 总开关）----
@@ -161,6 +195,10 @@ pub fn run() {
             });
             app.manage(SourcesState(Arc::new(Sources::new(Arc::clone(&db), sink))));
 
+            // 03 号票：检索服务——只读 FTS5 + 回退线性扫描
+            let search = Arc::new(SearchService::new(Arc::clone(&db)));
+            app.manage(SearchState(search));
+
             // 08 号票：设置服务——非敏感配置走 SQLite，API Key 走 OS 凭据库
             // （Windows Credential Manager，经 keyring），HTTP 经 ureq。
             let settings = Arc::new(Settings::new(
@@ -180,6 +218,8 @@ pub fn run() {
             sources_pause,
             sources_remove,
             sources_sync,
+            search_query,
+            search_open_context,
             settings_get,
             settings_set_ai,
             settings_set_ai_enabled,

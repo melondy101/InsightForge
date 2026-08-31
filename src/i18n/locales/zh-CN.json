@@ -64,6 +64,27 @@
       "generic": "操作失败：{{message}}"
     }
   },
+  "search": {
+    "nav": {
+      "search": "检索"
+    },
+    "title": "检索",
+    "sourceLabel": "来源：{{name}}",
+    "placeholder": "输入关键词检索…",
+    "submit": "检索",
+    "loading": "检索中…",
+    "empty": "暂无结果。试试其他关键词。",
+    "contextTitle": "上下文",
+    "contextClose": "关闭",
+    "openContext": "打开上下文",
+    "rank": "相关度 {{bm25}}",
+    "error": {
+      "repository_error": "数据库操作失败",
+      "source_not_found": "来源不存在或已被移除",
+      "invalid_query": "查询内容不能为空",
+      "generic": "检索失败：{{message}}"
+    }
+  },
   "settings": {
     "nav": {
       "settings": "设置"
