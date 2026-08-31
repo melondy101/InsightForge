@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useDrafts } from './useDrafts';
+import { useAppState } from '../AppStateContext';
 
 function DraftsListView({ drafts, onOpen }: { drafts: { filename: string; updatedAt: string }[]; onOpen: (f: string) => void }) {
   const { t } = useTranslation();
@@ -51,14 +52,16 @@ function ConflictDialog({
 export function DraftsView() {
   const { t } = useTranslation();
   const {
-    drafts,
-    activeDraft,
+    drafts: localDrafts,
+    activeDraft: localActiveDraft,
     content,
     status,
     conflict,
     error,
     actions,
   } = useDrafts();
+  const appState = useAppState();
+  const activeDraft = appState.activeDraft ?? localActiveDraft;
 
   const handleCreate = async () => {
     const filename = prompt(t('drafts.promptFilename') as string) ?? '';

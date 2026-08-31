@@ -9,6 +9,7 @@ import { SourcesView } from './sources/SourcesView';
 import { ThoughtsView } from './thoughts/ThoughtsView';
 import { useSources } from './sources/useSources';
 import { useDrafts } from './drafts/useDrafts';
+import { AppStateContext, AppActionsContext } from './AppStateContext';
 import { WorkspaceView } from './workspace/WorkspaceView';
 
 type View = 'workspace' | 'sources' | 'search' | 'settings' | 'drafts' | 'references' | 'thoughts';
@@ -25,13 +26,15 @@ type View = 'workspace' | 'sources' | 'search' | 'settings' | 'drafts' | 'refere
 export function App() {
   const { t } = useTranslation();
   const [view, setView] = useState<View>('workspace');
-  const { sources } = useSources();
-  const { activeDraft } = useDrafts();
+  const { sources: appSources } = useSources();
+  const { activeDraft: appActiveDraft } = useDrafts();
 
-  const defaultSource = useMemo(() => sources[0] ?? null, [sources]);
+  const defaultSource = useMemo(() => appSources[0] ?? null, [appSources]);
 
   return (
-    <div className="workspace" data-el="workspace">
+    <AppStateContext.Provider value={{ sources: appSources, activeDraft: appActiveDraft }}>
+      <AppActionsContext.Provider value={{ refreshSources: async () => {}, refreshDrafts: async () => {}, openDraft: async () => {} }}>
+        <div className="workspace" data-el="workspace">
       <header className="workspace__titlebar" data-el="workspace-titlebar">
         {t('shell.appTitle')}
       </header>
@@ -139,5 +142,7 @@ export function App() {
         )}
       </div>
     </div>
+      </AppActionsContext.Provider>
+    </AppStateContext.Provider>
   );
 }

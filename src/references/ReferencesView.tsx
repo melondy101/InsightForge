@@ -1,8 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import { useReferences } from './useReferences';
+import { useAppState } from '../AppStateContext';
 
 export function ReferencesView({ draftId }: { draftId: string }) {
   const { t } = useTranslation();
+  const appState = useAppState();
   const { references, error, actions } = useReferences(draftId);
 
   return (
