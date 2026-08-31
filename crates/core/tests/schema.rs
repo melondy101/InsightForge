@@ -28,9 +28,10 @@ fn open_applies_ticket02_migrations_and_creates_domain_tables() {
     assert_eq!(
         repo.applied_migrations()
             .expect("applied migrations readable"),
-        // 02 号票拥有 0001–0003；0004 为 08 号票经主控授权新增（app_setting）。
-        vec![1, 2, 3, 4],
-        "migrations must apply in strict order (02: 0001-0003, 08: 0004)"
+        // 02 号票拥有 0001–0003；0004 为 08 号票经主控授权新增（app_setting）；
+        // 0010 为 06 号票新增（draft 表）。
+        vec![1, 2, 3, 4, 10],
+        "migrations must apply in strict order (02: 0001-0003, 08: 0004, 06: 0010)"
     );
 
     let tables = table_names(&dir.path().join("insightforge.sqlite"));

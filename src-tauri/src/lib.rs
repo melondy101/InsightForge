@@ -8,9 +8,9 @@ use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
 use insightforge_core::{
-    AiSampleReply, AiSettings, EventSink, KeyringStore, Repository, SearchError, SearchService,
-    Settings, SettingsError, SourceEvent, SourceSummary, Sources, SourcesError, TestConnectionReport,
-    UreqAiHttpClient,
+    AiSampleReply, AiSettings, DraftsError, DraftsService, EventSink, KeyringStore, Repository,
+    SearchError, SearchService, Settings, SettingsError, SourceEvent, SourceSummary, Sources,
+    SourcesError, TestConnectionReport, UreqAiHttpClient,
 };
 
 /// 启动时打开的数据库，经 Tauri managed state 注入后续命令。
@@ -24,6 +24,9 @@ pub struct SearchState(pub Arc<SearchService>);
 
 /// 设置服务状态：非敏感配置走 SQLite，API Key 走 OS 凭据库。
 pub struct SettingsState(pub Arc<Settings>);
+
+/// 草稿服务状态。
+pub struct DraftsState(pub Arc<DraftsService>);
 
 /// 命令错误投影：稳定 code 供前端 i18n 映射，message 供开发诊断。
 #[derive(Debug, Serialize)]
@@ -53,6 +56,15 @@ impl From<SearchError> for CommandError {
 
 impl From<SettingsError> for CommandError {
     fn from(error: SettingsError) -> Self {
+        Self {
+            code: error.code(),
+            message: error.to_string(),
+        }
+    }
+}
+
+impl From<DraftsError> for CommandError {
+    fn from(error: DraftsError) -> Self {
         Self {
             code: error.code(),
             message: error.to_string(),
@@ -169,6 +181,53 @@ fn ai_sample(
     Ok(state.0.ai_sample(&prompt)?)
 }
 
+// ---- drafts.*（06 号票：原子保存与冲突检测）----
+
+#[tauri::command]
+fn drafts_ensure_directory(
+    state: State<'_, DraftsState>,
+) -> Result<(), CommandError> {
+    Ok(state.0.ensure_directory()?)
+}
+
+#[tauri::command]
+fn drafts_list(state: State<'_, DraftsState>) -> Result<Vec<insightforge_core::DraftFile>, CommandError> {
+    Ok(state.0.list()?)
+}
+
+#[tauri::command]
+fn drafts_create(
+    state: State<'_, DraftsState>,
+    filename: String,
+) -> Result<insightforge_core::DraftFile, CommandError> {
+    Ok(state.0.create(&filename)?)
+}
+
+#[tauri::command]
+fn drafts_open(
+    state: State<'_, DraftsState>,
+    filename: String,
+) -> Result<insightforge_core::DraftFile, CommandError> {
+    Ok(state.0.open(&filename)?)
+}
+
+#[tauri::command]
+fn drafts_save(
+    state: State<'_, DraftsState>,
+    filename: String,
+    content: String,
+) -> Result<insightforge_core::DraftFile, CommandError> {
+    Ok(state.0.save(&filename, &content)?)
+}
+
+#[tauri::command]
+fn drafts_delete(
+    state: State<'_, DraftsState>,
+    filename: String,
+) -> Result<(), CommandError> {
+    Ok(state.0.delete(&filename)?)
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -210,6 +269,12 @@ pub fn run() {
                 "[insightforge] settings ready: secret_store=windows-credential-manager service=insightforge http_client=ureq"
             );
             app.manage(SettingsState(settings));
+
+            // 06 号票：草稿服务——原子保存 + 冲突检测
+            let drafts_dir = data_dir.join("drafts");
+            let drafts = Arc::new(DraftsService::new(Arc::clone(&db), drafts_dir));
+            app.manage(DraftsState(drafts));
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -226,7 +291,13 @@ pub fn run() {
             settings_set_api_key,
             settings_clear_api_key,
             settings_test_connection,
-            ai_sample
+            ai_sample,
+            drafts_ensure_directory,
+            drafts_list,
+            drafts_create,
+            drafts_open,
+            drafts_save,
+            drafts_delete
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

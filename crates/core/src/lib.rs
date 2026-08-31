@@ -5,6 +5,7 @@
 //! executor、Sources 命令 seam）。后续票据继续垂直切片。
 
 pub mod chunking;
+pub mod drafts;
 pub mod executor;
 pub mod http_client;
 mod indexer;
@@ -33,3 +34,4 @@ pub use settings::{
 };
 pub use sources::{EventSink, SourceEvent, SourceStatus, SourceSummary, Sources, SourcesError};
 pub use search::{EvidenceCard, FragmentContext, SearchError, SearchService};
+pub use drafts::{Conflict, DraftFile, DraftsError, DraftsService};

@@ -135,5 +135,24 @@
       "client_error": "连接失败：{{message}}",
       "generic": "操作失败：{{message}}"
     }
+  },
+  "drafts": {
+    "nav": {
+      "drafts": "草稿"
+    },
+    "title": "草稿",
+    "listTitle": "草稿列表",
+    "empty": "还没有草稿。",
+    "new": "新建",
+    "save": "保存",
+    "delete": "删除",
+    "dismiss": "关闭",
+    "promptFilename": "草稿文件名（须以 .md 结尾）：",
+    "confirmDelete": "确定删除该草稿文件？",
+    "openPlaceholder": "打开或新建草稿以开始写作。",
+    "conflictTitle": "检测到冲突",
+    "conflictKeepLocal": "保留本地修改",
+    "conflictAdoptExternal": "采用外部修改",
+    "conflictSaveAs": "另存为…"
   }
 }
