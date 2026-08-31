@@ -11,6 +11,7 @@ use insightforge_core::egress::{
     AuditLogger, AuditRecord, EgressBundle, EgressBundleBuilder, EgressError,
 };
 use insightforge_core::references::CreateReference;
+use insightforge_core::thoughts::{ThoughtCard, ThoughtsError, ThoughtsService, UpsertThoughtCard};
 use insightforge_core::{
     AiSampleReply, AiSettings, DraftsError, DraftsService, EventSink, KeyringStore,
     ReferencesError, ReferencesService, Repository, SearchError, SearchService, Settings,
@@ -38,6 +39,9 @@ pub struct ReferencesState(pub Arc<ReferencesService>);
 
 /// 出站包与审计服务状态。
 pub struct EgressState(pub Arc<EgressBundleBuilder>, pub Arc<AuditLogger>);
+
+/// 思考卡服务状态。
+pub struct ThoughtsState(pub Arc<ThoughtsService>);
 
 /// 命令错误投影：稳定 code 供前端 i18n 映射，message 供开发诊断。
 #[derive(Debug, Serialize)]
@@ -96,6 +100,15 @@ impl From<EgressError> for CommandError {
     fn from(error: EgressError) -> Self {
         Self {
             code: "egress_error",
+            message: error.to_string(),
+        }
+    }
+}
+
+impl From<ThoughtsError> for CommandError {
+    fn from(error: ThoughtsError) -> Self {
+        Self {
+            code: "thoughts_error",
             message: error.to_string(),
         }
     }
@@ -344,6 +357,42 @@ fn audit_list(
     Ok(state.1.list(limit)?)
 }
 
+// ---- thoughts.*（11 号票：思考卡）----
+
+#[tauri::command]
+fn thoughts_upsert(
+    state: State<'_, ThoughtsState>,
+    input: UpsertThoughtCard,
+) -> Result<ThoughtCard, CommandError> {
+    Ok(state.0.upsert(&input)?)
+}
+
+#[tauri::command]
+fn thoughts_list(state: State<'_, ThoughtsState>) -> Result<Vec<ThoughtCard>, CommandError> {
+    Ok(state.0.list()?)
+}
+
+#[tauri::command]
+fn thoughts_list_by_draft(
+    state: State<'_, ThoughtsState>,
+    draft_id: String,
+) -> Result<Vec<ThoughtCard>, CommandError> {
+    Ok(state.0.list_by_draft(&draft_id)?)
+}
+
+#[tauri::command]
+fn thoughts_list_by_source(
+    state: State<'_, ThoughtsState>,
+    source_id: String,
+) -> Result<Vec<ThoughtCard>, CommandError> {
+    Ok(state.0.list_by_source(&source_id)?)
+}
+
+#[tauri::command]
+fn thoughts_delete(state: State<'_, ThoughtsState>, id: String) -> Result<(), CommandError> {
+    Ok(state.0.delete(&id)?)
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -390,7 +439,7 @@ pub fn run() {
             // 06 号票：草稿服务——原子保存 + 冲突检测
             let drafts_dir = data_dir.join("drafts");
             let drafts = Arc::new(DraftsService::new(Arc::clone(&db), drafts_dir));
-            app.manage(DraftsState(drafts));
+            app.manage(DraftsState(Arc::clone(&drafts)));
 
             // 07 号票：引用服务——不可变快照
             let references = Arc::new(ReferencesService::new(Arc::clone(&db)));
@@ -405,6 +454,10 @@ pub fn run() {
             ));
             let audit_logger = Arc::new(AuditLogger::new(Arc::clone(&db)));
             app.manage(EgressState(egress_builder, audit_logger));
+
+            // 11 号票：思考卡
+            let thoughts = Arc::new(ThoughtsService::new(Arc::clone(&db), Arc::clone(&drafts)));
+            app.manage(ThoughtsState(thoughts));
 
             Ok(())
         })
@@ -438,7 +491,12 @@ pub fn run() {
             references_mark_source_deleted,
             egress_build,
             audit_log,
-            audit_list
+            audit_list,
+            thoughts_upsert,
+            thoughts_list,
+            thoughts_list_by_draft,
+            thoughts_list_by_source,
+            thoughts_delete
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

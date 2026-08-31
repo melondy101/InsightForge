@@ -18,6 +18,7 @@ pub mod secrets;
 pub mod settings;
 pub mod sources;
 mod store;
+pub mod thoughts;
 
 pub use chunking::{chunk_markdown, chunk_plain, Chunk, ChunkConfig, DEFAULT_MAX_CHUNK_CHARS};
 pub use drafts::{Conflict, DraftFile, DraftsError, DraftsService};
@@ -44,3 +45,4 @@ pub use sources::{EventSink, SourceEvent, SourceStatus, SourceSummary, Sources, 
 pub use store::{
     files_of_source_with_identity, mark_files_missing, rename_file, StoredFileWithIdentity,
 };
+pub use thoughts::{ThoughtCard, ThoughtsError, ThoughtsService, UpsertThoughtCard};
