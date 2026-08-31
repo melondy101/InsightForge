@@ -40,14 +40,14 @@
       "icons/icon.ico"
     ],
     "windows": {
-      "certificateThumbprint": null,
+      "certificateThumbprint": "${env.INSIGHTFORGE_CERT_THUMBPRINT}",
       "timestampUrl": "http://timestamp.digicert.com"
     }
   },
   "plugins": {
     "updater": {
       "endpoints": {
-        "default": "https://updater.insightforge.app/{{target}}/{{current_version}}"
+        "default": "${env.INSIGHTFORGE_UPDATER_ENDPOINT}"
       },
       "windows": {
         "installMode": "passive",
