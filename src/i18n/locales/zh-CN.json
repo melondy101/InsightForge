@@ -199,5 +199,17 @@
     "model": "模型",
     "createdAt": "创建时间",
     "status": "状态"
+  },
+  "export": {
+    "nav": {
+      "export": "导出"
+    },
+    "title": "导出",
+    "empty": "暂无导出。",
+    "dismiss": "关闭",
+    "accentColor": "强调色",
+    "exportButton": "导出 HTML",
+    "exporting": "导出中…",
+    "hint": "导出的 HTML 使用 Clean Reading 主题。"
   }
 }
