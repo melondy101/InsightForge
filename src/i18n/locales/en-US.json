@@ -210,6 +210,9 @@
     "accentColor": "Accent color",
     "exportButton": "Export HTML",
     "exporting": "Exporting…",
+    "copied": "Copied!",
+    "copyToClipboard": "Copy to clipboard",
+    "clipboardHint": "HTML copied to clipboard. Paste into WeChat editor.",
     "hint": "Exported HTML uses Clean Reading theme."
   }
 }

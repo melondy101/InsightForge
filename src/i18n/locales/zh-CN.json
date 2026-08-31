@@ -210,6 +210,9 @@
     "accentColor": "强调色",
     "exportButton": "导出 HTML",
     "exporting": "导出中…",
+    "copied": "已复制！",
+    "copyToClipboard": "复制到剪贴板",
+    "clipboardHint": "HTML 已复制到剪贴板，粘贴到微信编辑器即可。",
     "hint": "导出的 HTML 使用 Clean Reading 主题。"
   }
 }
