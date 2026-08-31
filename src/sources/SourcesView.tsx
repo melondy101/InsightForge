@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { CommandErrorShape, SourceSummary } from './api';
 import { progressPercent } from './progress';
 import { useSources } from './useSources';
+import { useAppState } from '../AppStateContext';
 
 /** 错误 code → i18n key；未知 code 回退到 generic（带 Rust message 供诊断）。 */
 function errorText(t: (key: string, options?: Record<string, unknown>) => string, error: CommandErrorShape): string {
@@ -178,12 +179,9 @@ function SourceRow({ source, progress, t, onPause, onSync, onReconcile, onRebuil
 /** 来源管理视图：目录授权、忽略规则展示、来源列表与事件驱动的索引进度。 */
 export function SourcesView() {
   const { t } = useTranslation();
-  const { sources, progress, defaultIgnoreGlobs, error, actions } = useSources();
-  const appActions = useAppActions();
-
-  // Sync local sources state up to app-level when it changes
-  // This is a temporary bridge until full context migration
-  const currentSources = sources;
+  const { sources: localSources, progress, defaultIgnoreGlobs, error, actions } = useSources();
+  const appState = useAppState();
+  const sources = appState.sources.length > 0 ? appState.sources : localSources;
 
   return (
     <div className="sources" data-el="sources-view">

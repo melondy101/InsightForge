@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { searchApi, type EvidenceCard, type FragmentContext, type SearchErrorShape, toSearchError } from './api';
+import { useAppState } from '../AppStateContext';
 
 function errorText(
   t: (key: string, options?: Record<string, unknown>) => string,
@@ -25,6 +26,7 @@ interface SearchViewProps {
 
 export function SearchView({ sourceId, sourceName }: SearchViewProps) {
   const { t } = useTranslation();
+  const appState = useAppState();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<EvidenceCard[]>([]);
   const [loading, setLoading] = useState(false);
