@@ -170,6 +170,24 @@
     "sourceDeleted": "Source deleted",
     "adopted": "Adopted"
   },
+  "thoughts": {
+    "nav": {
+      "thoughts": "Thoughts"
+    },
+    "title": "Thoughts",
+    "empty": "No thought cards yet.",
+    "dismiss": "Dismiss",
+    "ideaPlaceholder": "Idea",
+    "sourceIdPlaceholder": "Source ID",
+    "sourceNamePlaceholder": "Source name",
+    "relPathPlaceholder": "Relative path",
+    "headingPathPlaceholder": "Heading path",
+    "draftIdPlaceholder": "Draft ID",
+    "draftFilenamePlaceholder": "Draft filename",
+    "submit": "Save",
+    "draft": "Draft",
+    "delete": "Delete"
+  },
   "egress": {
     "nav": {
       "egress": "Egress"

@@ -170,6 +170,24 @@
     "sourceDeleted": "来源已删除",
     "adopted": "已采用"
   },
+  "thoughts": {
+    "nav": {
+      "thoughts": "思考卡"
+    },
+    "title": "思考卡",
+    "empty": "还没有思考卡。",
+    "dismiss": "关闭",
+    "ideaPlaceholder": "想法",
+    "sourceIdPlaceholder": "来源 ID",
+    "sourceNamePlaceholder": "来源名称",
+    "relPathPlaceholder": "相对路径",
+    "headingPathPlaceholder": "标题路径",
+    "draftIdPlaceholder": "草稿 ID",
+    "draftFilenamePlaceholder": "草稿文件名",
+    "submit": "保存",
+    "draft": "草稿",
+    "delete": "删除"
+  },
   "egress": {
     "nav": {
       "egress": "出站审计"

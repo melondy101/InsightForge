@@ -6,9 +6,10 @@ import { ReferencesView } from './references/ReferencesView';
 import { SearchView } from './search/SearchView';
 import { SettingsView } from './settings/SettingsView';
 import { SourcesView } from './sources/SourcesView';
+import { ThoughtsView } from './thoughts/ThoughtsView';
 import { WorkspaceView } from './workspace/WorkspaceView';
 
-type View = 'workspace' | 'sources' | 'search' | 'settings' | 'drafts' | 'references';
+type View = 'workspace' | 'sources' | 'search' | 'settings' | 'drafts' | 'references' | 'thoughts';
 
 /**
  * 桌面工作区壳：侧栏导航 + 视图区。
@@ -16,6 +17,7 @@ type View = 'workspace' | 'sources' | 'search' | 'settings' | 'drafts' | 'refere
  * 「检索」视图由 03 号票交付；「设置」视图由 08 号票交付（AI BYOK、总开关）。
  * 「草稿」视图由 06 号票交付（原子保存 + 冲突检测）。
  * 「引用」视图由 07 号票交付（证据架与不可变引用快照）。
+ * 「思考卡」视图由 11 号票交付（作者资产，不随索引重建而重建）。
  * 每个交互区域带 data-el 定位属性（CONTEXT.md §七）。
  */
 export function App() {
@@ -65,6 +67,14 @@ export function App() {
             <button
               type="button"
               className="sidebar__nav-item"
+              data-el="nav-thoughts"
+              onClick={() => setView('thoughts')}
+            >
+              {t('thoughts.nav.thoughts')}
+            </button>
+            <button
+              type="button"
+              className="sidebar__nav-item"
               data-el="nav-search"
               onClick={() => setView('search')}
             >
@@ -99,6 +109,10 @@ export function App() {
         ) : view === 'references' ? (
           <section className="pane pane--references" data-el="pane-references">
             <ReferencesView draftId="__demo__" />
+          </section>
+        ) : view === 'thoughts' ? (
+          <section className="pane pane--thoughts" data-el="pane-thoughts">
+            <ThoughtsView />
           </section>
         ) : (
           <WorkspaceView />

@@ -144,6 +144,23 @@ CREATE VIRTUAL TABLE fragment_fts USING fts5(
     status TEXT NOT NULL
 )",
     },
+    // 11 号票：思考卡表（作者资产，不随索引重建而重建）。
+    Migration {
+        version: 13,
+        name: "create_thought_card",
+        sql: "CREATE TABLE thought_card (
+    id TEXT PRIMARY KEY,
+    idea TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    source_name TEXT NOT NULL,
+    rel_path TEXT NOT NULL,
+    heading_path TEXT NOT NULL,
+    draft_id TEXT NOT NULL,
+    draft_filename TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+)",
+    },
 ];
 
 /// 版本化迁移执行器：校验编号后把未应用的迁移按序应用到数据库。

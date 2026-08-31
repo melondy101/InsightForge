@@ -272,7 +272,7 @@ impl DraftsService {
         self.find_draft(filename)
     }
 
-    fn find_draft(&self, filename: &str) -> Result<Option<DraftFile>, DraftsError> {
+    pub fn find_draft(&self, filename: &str) -> Result<Option<DraftFile>, DraftsError> {
         let filename = filename.to_string();
         Ok(self.repo.read(move |conn| {
             let mut stmt = conn.prepare(
