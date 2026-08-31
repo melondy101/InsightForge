@@ -169,5 +169,17 @@
     "adopt": "采用",
     "sourceDeleted": "来源已删除",
     "adopted": "已采用"
+  },
+  "egress": {
+    "nav": {
+      "egress": "出站审计"
+    },
+    "title": "出站审计",
+    "empty": "暂无出站记录。",
+    "dismiss": "关闭",
+    "fragmentCount": "片段数量",
+    "model": "模型",
+    "createdAt": "创建时间",
+    "status": "状态"
   }
 }

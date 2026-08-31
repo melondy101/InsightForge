@@ -7,6 +7,9 @@ use std::sync::Arc;
 use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
+use insightforge_core::egress::{
+    AuditLogger, AuditRecord, EgressBundle, EgressBundleBuilder, EgressError,
+};
 use insightforge_core::references::CreateReference;
 use insightforge_core::{
     AiSampleReply, AiSettings, DraftsError, DraftsService, EventSink, KeyringStore,
@@ -32,6 +35,9 @@ pub struct DraftsState(pub Arc<DraftsService>);
 
 /// 引用服务状态。
 pub struct ReferencesState(pub Arc<ReferencesService>);
+
+/// 出站包与审计服务状态。
+pub struct EgressState(pub Arc<EgressBundleBuilder>, pub Arc<AuditLogger>);
 
 /// 命令错误投影：稳定 code 供前端 i18n 映射，message 供开发诊断。
 #[derive(Debug, Serialize)]
@@ -81,6 +87,15 @@ impl From<ReferencesError> for CommandError {
     fn from(error: ReferencesError) -> Self {
         Self {
             code: error.code(),
+            message: error.to_string(),
+        }
+    }
+}
+
+impl From<EgressError> for CommandError {
+    fn from(error: EgressError) -> Self {
+        Self {
+            code: "egress_error",
             message: error.to_string(),
         }
     }
@@ -293,6 +308,42 @@ fn references_mark_source_deleted(
     Ok(state.0.mark_source_deleted(&source_id)?)
 }
 
+// ---- egress.*（09 号票：出站包与调用审计）----
+
+#[tauri::command]
+fn egress_build(
+    state: State<'_, EgressState>,
+    draft_content: String,
+    draft_id: String,
+    search_query: Option<(String, String, usize)>,
+) -> Result<EgressBundle, CommandError> {
+    let (source_id, query, limit) = search_query.unwrap_or_default();
+    Ok(state
+        .0
+        .build_for_draft(&draft_content, &draft_id, Some((&source_id, &query, limit)))?)
+}
+
+#[tauri::command]
+fn audit_log(
+    state: State<'_, EgressState>,
+    model: String,
+    fragment_count: i64,
+    fragment_ids: Vec<String>,
+    status: String,
+) -> Result<AuditRecord, CommandError> {
+    Ok(state
+        .1
+        .log(&model, fragment_count, &fragment_ids, &status)?)
+}
+
+#[tauri::command]
+fn audit_list(
+    state: State<'_, EgressState>,
+    limit: usize,
+) -> Result<Vec<AuditRecord>, CommandError> {
+    Ok(state.1.list(limit)?)
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -321,6 +372,7 @@ pub fn run() {
 
             // 03 号票：检索服务——只读 FTS5 + 回退线性扫描
             let search = Arc::new(SearchService::new(Arc::clone(&db)));
+            let search_for_egress = Arc::clone(&search);
             app.manage(SearchState(search));
 
             // 08 号票：设置服务——非敏感配置走 SQLite，API Key 走 OS 凭据库
@@ -342,7 +394,17 @@ pub fn run() {
 
             // 07 号票：引用服务——不可变快照
             let references = Arc::new(ReferencesService::new(Arc::clone(&db)));
+            let references_for_egress = Arc::clone(&references);
             app.manage(ReferencesState(references));
+
+            // 09 号票：出站包与调用审计
+            let egress_builder = Arc::new(EgressBundleBuilder::new(
+                Arc::clone(&db),
+                search_for_egress,
+                references_for_egress,
+            ));
+            let audit_logger = Arc::new(AuditLogger::new(Arc::clone(&db)));
+            app.manage(EgressState(egress_builder, audit_logger));
 
             Ok(())
         })
@@ -373,7 +435,10 @@ pub fn run() {
             references_create,
             references_list,
             references_adopt,
-            references_mark_source_deleted
+            references_mark_source_deleted,
+            egress_build,
+            audit_log,
+            audit_list
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -131,6 +131,19 @@ CREATE VIRTUAL TABLE fragment_fts USING fts5(
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 )",
     },
+    // 09 号票：AI 调用审计表（只记录元数据，不重复保存敏感全文）。
+    Migration {
+        version: 12,
+        name: "create_ai_call_audit",
+        sql: "CREATE TABLE ai_call_audit (
+    id TEXT PRIMARY KEY,
+    model TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    fragment_count INTEGER NOT NULL,
+    fragment_ids TEXT NOT NULL,
+    status TEXT NOT NULL
+)",
+    },
 ];
 
 /// 版本化迁移执行器：校验编号后把未应用的迁移按序应用到数据库。
