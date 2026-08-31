@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { DraftsView } from './drafts/DraftsView';
@@ -7,6 +7,8 @@ import { SearchView } from './search/SearchView';
 import { SettingsView } from './settings/SettingsView';
 import { SourcesView } from './sources/SourcesView';
 import { ThoughtsView } from './thoughts/ThoughtsView';
+import { useSources } from './sources/useSources';
+import { useDrafts } from './drafts/useDrafts';
 import { WorkspaceView } from './workspace/WorkspaceView';
 
 type View = 'workspace' | 'sources' | 'search' | 'settings' | 'drafts' | 'references' | 'thoughts';
@@ -23,6 +25,10 @@ type View = 'workspace' | 'sources' | 'search' | 'settings' | 'drafts' | 'refere
 export function App() {
   const { t } = useTranslation();
   const [view, setView] = useState<View>('workspace');
+  const { sources } = useSources();
+  const { activeDraft } = useDrafts();
+
+  const defaultSource = useMemo(() => sources[0] ?? null, [sources]);
 
   return (
     <div className="workspace" data-el="workspace">
@@ -96,7 +102,14 @@ export function App() {
           </section>
         ) : view === 'search' ? (
           <section className="pane pane--search" data-el="pane-search">
-            <SearchView sourceId="__demo__" sourceName={t('search.demoSource')} />
+            {defaultSource ? (
+              <SearchView sourceId={defaultSource.id} sourceName={defaultSource.name} />
+            ) : (
+              <div className="search" data-el="search-view">
+                <h2 data-el="search-title">{t('search.title')}</h2>
+                <p data-el="search-empty">{t('search.emptySource')}</p>
+              </div>
+            )}
           </section>
         ) : view === 'settings' ? (
           <section className="pane pane--settings" data-el="pane-settings">
@@ -108,7 +121,14 @@ export function App() {
           </section>
         ) : view === 'references' ? (
           <section className="pane pane--references" data-el="pane-references">
-            <ReferencesView draftId="__demo__" />
+            {activeDraft ? (
+              <ReferencesView draftId={activeDraft.id} />
+            ) : (
+              <div className="references-view" data-el="references-view">
+                <h3>{t('references.title')}</h3>
+                <p data-el="references-empty">{t('references.emptyDraft')}</p>
+              </div>
+            )}
           </section>
         ) : view === 'thoughts' ? (
           <section className="pane pane--thoughts" data-el="pane-thoughts">
