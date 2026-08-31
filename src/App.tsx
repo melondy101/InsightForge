@@ -1,17 +1,19 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { DraftsView } from './drafts/DraftsView';
 import { SearchView } from './search/SearchView';
 import { SettingsView } from './settings/SettingsView';
 import { SourcesView } from './sources/SourcesView';
 import { WorkspaceView } from './workspace/WorkspaceView';
 
-type View = 'workspace' | 'sources' | 'search' | 'settings';
+type View = 'workspace' | 'sources' | 'search' | 'settings' | 'drafts';
 
 /**
  * 桌面工作区壳：侧栏导航 + 视图区。
  * 「工作台」视图为可调三栏（05 号票）；「来源管理」视图由 02 号票交付；
  * 「检索」视图由 03 号票交付；「设置」视图由 08 号票交付（AI BYOK、总开关）。
+ * 「草稿」视图由 06 号票交付（原子保存 + 冲突检测）。
  * 每个交互区域带 data-el 定位属性（CONTEXT.md §七）。
  */
 export function App() {
@@ -45,6 +47,14 @@ export function App() {
             <button
               type="button"
               className="sidebar__nav-item"
+              data-el="nav-drafts"
+              onClick={() => setView('drafts')}
+            >
+              {t('drafts.nav.drafts')}
+            </button>
+            <button
+              type="button"
+              className="sidebar__nav-item"
               data-el="nav-search"
               onClick={() => setView('search')}
             >
@@ -71,6 +81,10 @@ export function App() {
         ) : view === 'settings' ? (
           <section className="pane pane--settings" data-el="pane-settings">
             <SettingsView />
+          </section>
+        ) : view === 'drafts' ? (
+          <section className="pane pane--drafts" data-el="pane-drafts">
+            <DraftsView />
           </section>
         ) : (
           <WorkspaceView />

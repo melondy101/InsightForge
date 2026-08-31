@@ -135,5 +135,24 @@
       "client_error": "Connection failed: {{message}}",
       "generic": "Operation failed: {{message}}"
     }
+  },
+  "drafts": {
+    "nav": {
+      "drafts": "Drafts"
+    },
+    "title": "Drafts",
+    "listTitle": "Drafts",
+    "empty": "No drafts yet.",
+    "new": "New",
+    "save": "Save",
+    "delete": "Delete",
+    "dismiss": "Dismiss",
+    "promptFilename": "Draft filename (must end with .md):",
+    "confirmDelete": "Delete this draft file?",
+    "openPlaceholder": "Open or create a draft to start writing.",
+    "conflictTitle": "Conflict detected",
+    "conflictKeepLocal": "Keep local",
+    "conflictAdoptExternal": "Adopt external",
+    "conflictSaveAs": "Save as…"
   }
 }

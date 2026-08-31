@@ -10,6 +10,7 @@ rusqlite = { version = "0.40", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+chrono = "0.4"
 # 08 号票：AI 连接测试/样例调用的真实传输层（可注入 AiHttpClient seam 的默认实现；
 # rustls(ring) + webpki 根证书，无 tokio，阻塞式适合命令路径上的一次性调用）。
 ureq = { version = "3", default-features = false, features = ["rustls", "rustls-webpki-roots"] }

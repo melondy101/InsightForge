@@ -95,6 +95,21 @@ CREATE VIRTUAL TABLE fragment_fts USING fts5(
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 )",
     },
+    // 06 号票：草稿元数据表（正文永远在磁盘，数据库只存基线）。
+    Migration {
+        version: 10,
+        name: "create_draft",
+        sql: "CREATE TABLE draft (
+    id TEXT PRIMARY KEY,
+    path TEXT NOT NULL UNIQUE,
+    filename TEXT NOT NULL,
+    baseline_hash TEXT NOT NULL,
+    baseline_mtime_ms INTEGER NOT NULL,
+    baseline_size INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+)",
+    },
 ];
 
 /// 版本化迁移执行器：校验编号后把未应用的迁移按序应用到数据库。
