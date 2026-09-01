@@ -446,17 +446,25 @@ fn coach_archive(state: State<'_, CoachState>, session_id: String) -> Result<(),
     Ok(state.0.archive(&session_id)?)
 }
 
+/// Updater 签名公钥解析。
+/// - release 构建必须由环境变量 INSIGHTFORGE_UPDATER_PUBKEY 提供，缺失即 panic（fail-closed）。
+/// - debug 构建回退到内置测试公钥，保证本地开发可运行。
+fn updater_pubkey() -> String {
+    match std::env::var("INSIGHTFORGE_UPDATER_PUBKEY") {
+        Ok(pk) => pk,
+        Err(_) if cfg!(not(debug_assertions)) => {
+            panic!("INSIGHTFORGE_UPDATER_PUBKEY must be set in release builds")
+        }
+        Err(_) => "dW50cnVzdGVkIGJ5IHNpbW9sZiBvciB0ZXN0".to_string(),
+    }
+}
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard::init())
         .plugin(
             tauri_plugin_updater::Builder::new()
-                .pubkey(std::env::var("INSIGHTFORGE_UPDATER_PUBKEY").unwrap_or_else(|_| {
-                    #[cfg(not(debug_assertions))]
-                    panic!("INSIGHTFORGE_UPDATER_PUBKEY must be set in release builds");
-                    "dW50cnVzdGVkIGJ5IHNpbW9sZiBvciB0ZXN0".into()
-                }))
+                .pubkey(updater_pubkey())
                 .build(),
         )
         .setup(|app| {
@@ -586,29 +594,22 @@ pub fn run() {
 
 #[cfg(test)]
 mod updater_tests {
+    use super::updater_pubkey;
+
+    const TEST_FALLBACK: &str = "dW50cnVzdGVkIGJ5IHNpbW9sZiBvciB0ZXN0";
+
+    /// debug 构建缺少公钥环境变量时，返回内置测试回退公钥且不 panic。
     #[test]
-    #[should_panic(expected = "INSIGHTFORGE_UPDATER_PUBKEY must be set in release builds")]
-    fn release_build_pubkey_missing_panics() {
-        // Simulate release build by clearing the env var if set
+    fn debug_missing_pubkey_uses_test_fallback() {
         std::env::remove_var("INSIGHTFORGE_UPDATER_PUBKEY");
-        // This would panic in a real release build; in test build (debug_assertions) it falls back
-        let _ = std::env::var("INSIGHTFORGE_UPDATER_PUBKEY").unwrap_or_else(|_| {
-            #[cfg(not(debug_assertions))]
-            panic!("INSIGHTFORGE_UPDATER_PUBKEY must be set in release builds");
-            "test-fallback".into()
-        });
+        assert_eq!(updater_pubkey(), TEST_FALLBACK);
     }
 
+    /// 已设置公钥环境变量时，优先使用环境变量值。
     #[test]
-    fn debug_build_uses_fallback_when_missing() {
+    fn pubkey_env_var_wins_over_fallback() {
+        std::env::set_var("INSIGHTFORGE_UPDATER_PUBKEY", "env-pubkey");
+        assert_eq!(updater_pubkey(), "env-pubkey");
         std::env::remove_var("INSIGHTFORGE_UPDATER_PUBKEY");
-        let result = std::env::var("INSIGHTFORGE_UPDATER_PUBKEY").unwrap_or_else(|_| {
-            #[cfg(debug_assertions)]
-            "test-fallback".into();
-            #[cfg(not(debug_assertions))]
-            panic!("INSIGHTFORGE_UPDATER_PUBKEY must be set in release builds");
-            "test-fallback".into()
-        });
-        assert_eq!(result, "test-fallback");
     }
 }

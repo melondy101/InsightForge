@@ -54,7 +54,6 @@
     "typescript-eslint": "^8.68.0",
     "vite": "^8.2.2",
     "vitest": "^4.1.11",
-    "@playwright/test": "^1.55.0",
-    "@tauri-apps/playwright": "^2.1.0"
+    "@playwright/test": "^1.55.0"
   }
 }
