@@ -10,23 +10,26 @@
 # 安装依赖
 bun install
 
-# 启动开发服务器
+# 启动前端开发服务器
 bun run dev
 
-# 运行测试
+# 运行前端测试
 bun run test
 
 # 代码检查
 bun run lint
 
 # 类型检查
-./node_modules/.bin/tsc --noEmit
+bunx tsc --noEmit
 
-# Web 构建
+# 前端构建
 bun run build
 
-# 桌面端静态导出（需 Tauri 环境）
-bun run desktop:export
+# Rust 测试
+cargo test
+
+# Rust 构建
+cargo build
 ```
 
 ---
@@ -77,9 +80,11 @@ bun run test:watch
 在推送前，确保以下命令全部通过：
 
 ```bash
-bun run test              # 全过
-./node_modules/.bin/tsc --noEmit  # 0 错误
-bun run lint              # 0 error / 0 warning
+bun run test                 # 前端测试全过
+bun run lint                 # 0 error / 0 warning
+bunx tsc --noEmit            # TypeScript 0 错误
+cargo test                   # Rust 测试全过
+cargo build                  # Rust 构建通过
 ```
 
 ---
@@ -107,14 +112,14 @@ bun run lint              # 0 error / 0 warning
 
 ## 8. 桌面端开发
 
-桌面端基于 Tauri v2，构建流程见 `README.md`「桌面端（Tauri）」章节。
+桌面端基于 Tauri v2 + Rust 核心，构建流程见 `README.md`「桌面端（Tauri）」章节。
 
 ```bash
-bun run desktop:export   # 生成静态站点到 out/
-bun run tauri dev        # Tauri 开发模式
+bun run tauri dev        # Tauri 开发模式（同时启动前端 dev server）
+bun run tauri build      # 打包桌面应用
 ```
 
-注意：桌面端静态导出会临时移出 `src/app/api`，因此桌面端构建不包含服务端 API routes。
+注意：桌面端前端通过 Vite 构建到 `src-tauri/dist`，不经 `desktop:export` 静态导出。
 
 ---
 

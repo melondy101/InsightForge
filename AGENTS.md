@@ -29,14 +29,15 @@
 
 ## 四、织知的落地约定（本项目特有）
 
-- **纯函数优先**：核心逻辑（选题、发布格式化、度量、记忆、门槛等）实现为 `src/lib/zhizhi/*.ts` 的纯函数，注入 `now` 等外部依赖以便测试与 SSR 一致。
-- **测试框架**：`vitest`，测试文件与实现同目录、命名 `*.test.ts`。运行 `bun run test`。
-- **提交前三绿**：`bun run test` 全过、`./node_modules/.bin/tsc --noEmit` 0 错误、`bun run lint` 0 error/warning。
+- **纯函数优先**：核心逻辑（索引、搜索、草稿、陪练、导出格式化、度量等）实现为 `crates/core/src/*.rs` 的纯函数，注入 `now` 等外部依赖以便测试与 SSR 一致。
+- **测试框架**：前端用 `vitest`，测试文件与实现同目录、命名 `*.test.ts`，运行 `bun run test`；Rust 用 `cargo test`。
+- **提交前三绿**：前端 `bun run test` 全过、`bunx tsc --noEmit` 0 错误、`bun run lint` 0 error/warning；Rust `cargo test` 全过、`cargo build` 通过。
 - **逐项交付**：一个功能一条 commit，本地跑通验证后单独推送到远端。
 - **反代写定位**：新功能应服务于「AI 只出骨架/提示、血肉由创作者写」。检查/提示类能力（只提示不改写）优先于替写类。
 - **i18n**：用户可见文案一律走 `react-i18next` 的 `t()`，字符串存 `src/i18n/locales/{zh-CN,en-US}.json`，不硬编码。
 
 ## 五、发布构建
 
-- Web 版：`bun run build`（SSR + API 路由）。
-- 桌面版（Tauri 静态导出）：`bun run desktop:export`（脚本会临时移出 `src/app/api` 后 `DESKTOP=1 next build`，产出 `out/`，完成后还原）。切勿直接 `DESKTOP=1 next build`。
+- 前端：`bun run build`（Vite 构建到 `src-tauri/dist`）。
+- 桌面版：`bun run tauri dev`（开发模式）；`bun run tauri build`（打包桌面应用）。
+- 提交前门禁：前端 `bun run test` / `bun run lint` / `bunx tsc --noEmit`；Rust `cargo test` / `cargo build` / `cargo fmt --check` / `cargo clippy -- -D warnings`。

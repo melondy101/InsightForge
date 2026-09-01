@@ -261,3 +261,12 @@ dist
 
 # 包管理器缓存
 /.npm-cache/
+
+# 桌面重写验证时生成的临时证据；指南和复跑脚本保留在仓库中。
+/.scratch/desktop-rewrite/verification/evidence-*.txt
+/.scratch/desktop-rewrite/verification/gp-*.png
+/.scratch/desktop-rewrite/verification/screenshots/
+/e2e-report/
+
+# WSL/Windows 路径转换异常时生成的本地 worktree 镜像目录。
+/D/
