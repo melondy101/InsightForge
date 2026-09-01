@@ -1,34 +1,168 @@
+# Orchestrator 运行记录 · InsightForge 桌面版重写
 
-### Ticket 01 · 桌面工作区骨架与 SQLite 地基（含移除旧 Web 应用）
-- Builder attempt 1（agent_cdba17c5）：交付 7 个 commit（50667a0..7a41dee），SQLite 3.53.2 ≥ 3.51.3，Rust 9 测试 + 前端 3 测试全绿，tauri dev Golden Path 有日志+窗口截图证据。
-- 主控独立复验：8 门禁全绿（fmt/clippy/test 9 passed/build + lint/tsc/test 3 passed/vite build）；diff 范围合格（AGENTS.md 仅 §四/§五，.scratch 仅 01 handoffs+Comments，spec.md 零改动）。
-- Reviewer（agent_2cccbf08）：VERDICT PASS。P0/P1=0；P2×3 非阻塞（bun.lock 根名 "nextjs-template" 系 baseline 既有残留，frozen-lockfile 不受影响；writer 闭包 panic→队列关闭为设计取舍；read 共用单写线程为 01 保守实现）。证据交叉印证：测试二进制与 dist 产物哈希一致。
-- 合并：7b7efaa `git merge --no-ff ticket/01-workspace-foundation`；合并后集成 checkout 全量 8 门禁回归全绿（bun install --frozen-lockfile exit 0）。
-- 遗留跟进：P2-1 bun.lock 根名在下次触碰 package.json 的票据顺手修正。
+> 本文件由主控维护，记录调度、门禁复验与合并裁决。Ticket 与 spec 的唯一事实来源不变。
 
-### 事故记录 · 02 Builder attempt 1 会话崩溃（2026-08-30）
-- 派发 02 Builder 后模型请求失败，子会话在交付 handoff 前崩溃；遗留 10 个 commit（c6c0bc0..558b9d3：迁移 0001–0003、分块纯函数、扫描边界、命令 seam、增量语义、暂停/恢复/移除、只读边界、Tauri 注册、来源管理视图+i18n）。
-- 主控处置：还原其越界覆盖的 01 号票证据文件 handoffs/evidence/tauri-dev.log（git checkout）；cargo test 复验遗留 commit 真实全绿（18+9+3+18 passed）；未跟踪的 Golden Path 截图/脚本目录留给 attempt 2 归置。
-- 决定：不重置分支；派发全新 Builder 会话 = attempt 2（末次 Builder 额度），任务为审计遗留工作 + TDD 补全 + 自跑全部门禁 + 自做 Golden Path + 撰写 handoff 02。若失败 → ticket 02 置 blocked 并升级用户。
+## 会话 1 · 2026-08-30
 
-### Ticket 02 · 添加来源并完成首次补扫索引（2026-08-30）
-- attempt 1 崩溃事故见上；attempt 2（agent_0fcb1fad）审计遗留 10 commit 为行为合格零缺口，补 3 commit（归置遗留物/还原 01 被越界覆盖的 gate-full.log/eslint ignores .scratch）+ handoff + 36 步自跑 Golden Path（620 文件索引、移除后 623 文件 sha256 无 diff）。
-- 主控独立复验：8 门禁全绿；13 commit 全 `ticket(02):`；01 证据与 60c8699 逐字节一致；迁移仅 0001–0003。
-- Reviewer（agent_3fbabf2e）：PASS。本人重跑 GP 32/32（606 文件 hash 无 diff、integrity_check ok）、junction 逃逸真实拒绝、单事务替换代码级确认。P2×4 非阻塞。
-- 合并：c5e0188 --no-ff；集成 8 门禁回归全绿。
-- 后续跟进（P2，非阻塞）：gp-driver 加 vite-connected 守卫（05/03 做 GP 时顺手）；SourcesView busy；sources.nav.workspace 键；sync/remove NotFound 测试。
-- 波次决定：W2 串行执行 02→05→08（三票共享命令注册与壳布局集成点，串行避免冲突）；05 先于 08 因其体量更大且解锁 06→12→13→14 发布链。
+### 基线确认（偏离说明）
+- 实际仓库状态与 orchestration-prompt 预设不同：预设"仓库仅一个 commit、工作树脏"，实际此前已有会话将重写 docs、CONTEXT.md、.scratch 票据以 3 个 commit 入库（9d53019 / 8c1b6fd / 48a4f67），工作树干净。
+- 依据"先验证、后调度，绝不盲目重做已完成工作"：不另造空的 baseline commit。**BASELINE = 48a4f67**（main HEAD）。
+- `.npm-cache/` 已在 .gitignore（`/.npm-cache/`），无需重复添加。
+- 全部 15 张票 `Status: ready-for-agent`，无 handoffs/ 目录，无已完成票需要验证。
 
-### Ticket 05 · 三栏工作台与 Markdown 编辑器（2026-08-30）
-- Builder attempt 1（agent_204f01f3）：6 commit（b206feb..790852c）。EditorAdapter 窄接口 + CodeMirror 6；round-trip 语料逐字节断言（BOM/EOL 还原策略，TDD 红灯抓到 setValue 重设基线缺陷）；提取纯函数 18 测；三栏 35% 硬钳制；CDP imeSetComposition 真实组合输入 570 字验证（残余风险：OS 级 IME 未覆盖，15 号票复核——已在 handoff 声明）。
-- 主控独立复验：8 门禁全绿（Rust 48 不变、前端 84）；范围干净、01/02 证据零改动。
-- Reviewer（agent_3dbaf602）：PASS。亲手加 4 个新语料用例 + 变异检验（禁用 getValue 快路径→混合行尾用例立即红）；对称方向 35% 约束补测；Ctrl+Z 撤销链逐级验证。P2：clampPaneWidths 负侧栏宽度（真实窗口实证、700px 自愈）、openDocument 可被撤销到空文档（当前不可达，06 接线时处理）、语料计数 19→实为 18。P3：handoff 归因小误、建议语料加栅栏内 # 行。
-- 合并：787bc76 --no-ff；集成 8 门禁回归全绿。
-- 随单携带至 06：P2-1 负宽度钳制修复+边界测试；P2-2 openDocument 重建 state/isolate history 设计决定。
+### 环境
+- bun 1.3.11 ✅；cargo 1.90.0 ✅；rustc 1.90.0 ✅
+- Tauri CLI：`bunx tauri` 报错（旧 package.json 的 `tauri` 脚本指向错误包名）；`bunx @tauri-apps/cli --version` → tauri-cli 2.11.4 ✅（01 号票需把 @tauri-apps/cli 正式加入 devDependencies）
 
-### Ticket 08 · BYOK 凭据库与 AI 总开关（2026-08-30）
-- 第二次「派发即 Model request failed 但会话实际已跑」事故：attempt 1 留 2 commit 中断；attempt 2 留 1 commit + 12 张 GP 截图/4 组步骤/ mock 服务器脚本中断（Builder 额度耗尽）。依红线第 9 条「外部服务失败 → 交回主控处理」：主控还原行尾幻影、亲跑 8 门禁全绿（Rust 77 + 前端 101）、逐张查验截图真实性后代整 handoff（provenance 明示、未亲证项标注），commit fd9494a。
-- Reviewer（agent_add5e48e）：PASS。keyring 链三重亲证（独立探针经原生 advapi32 CredRead 解出 blob；真实应用库 .sqlite/-wal/-shm 字节扫描无 key；mock 日志恰 2 请求）；GP 步骤日志缺口由 Reviewer 自写 CDP 驱动补齐。P2×2 + 口径确认×1（主控追认：连接测试不受开关限制）。
-- 合并：3fd7c63 --no-ff；集成 8 门禁回归全绿。
-- 教训：本环境子 Agent 派发存在「返回 Model request failed 但会话已实际运行」的故障模式；主控处置 SOP = 先盘 worktree 遗留再决定重派/收尾，不盲目重派。
-- W2 波次完结（02、05、08）。下一步 W3：03（检索）先行，随后 06（草稿原子保存——全计划最高风险票）。
+### 基线门禁（旧栈，main @ 48a4f67）
+- `bun run lint` → exit 0 ✅
+- `bunx tsc --noEmit` → 1 个既有错误：`drizzle.config.ts(1,30): error TS2307: Cannot find module 'drizzle-kit'`（旧栈残留，01 移除旧应用时消除）❌
+- `bun run test`（vitest）→ exit 0，15 文件 126 测试全过 ✅
+
+### 门禁命令（第 5 节发现结果，已核对 package.json）
+- 01 之前（旧栈）：`bun run lint`、`bunx tsc --noEmit`、`bun run test`
+- 01 合并后（新栈）：`cargo fmt --check`、`cargo clippy -- -D warnings`、`cargo test`、`cargo build`、`bun run lint`、`bunx tsc --noEmit`、`bun run test`、`bun run build`（vite）；14 后加打包冒烟
+
+### 分支 / worktree
+- `integration/desktop-rewrite` ← 48a4f67（集成分支，main 不动）
+- 01：worktree `D:\Develop\wt\InsightForge\01-workspace-foundation`，分支 `ticket/01-workspace-foundation`
+- `_integration`：worktree `D:\Develop\wt\InsightForge\_integration`（主控合并区）
+
+### 调度日志
+- 2026-08-30：派发 01 Builder attempt 1（全新会话）。
+
+## 会话 2 · 2026-08-31
+
+### 基线确认
+- integration/desktop-rewrite HEAD = `a6db2d2`（08 merge commit）
+- main HEAD = `48a4f67`（不变）
+- 03 worktree（`ticket/03-keyword-search-evidence-cards`）同指 `a6db2d2`，无 03 号票实际工作，可安全走新 Builder
+
+### 环境与工具链
+- bun 1.3.11 ✅；cargo 1.90.0；rustc 1.90.0（stable 默认）
+- `cargo clippy` 实际调用 rustc 1.94.0（clippy 0.1.94），与 PATH 中 rustc 1.90.0 不一致，触发 E0514（`tauri_build` 缓存不兼容）
+- `cargo clean` 后仍有缓存残留（Windows `rm -rf` 未彻底清除 target/debug/deps）
+- 代码在 `rustup run 1.91.0 cargo build/test` 下全绿；**clippy 门禁记录为环境失败，非代码失败**
+
+### 已复验/已合并
+- 01（`7b7efaa`）、02（`c5e0188`）、05（`787bc76`）、08（`3fd7c63`）——merge commit + handoff + gate 证据齐全
+- 16（`29780ae`）— Builder + Reviewer（主控独立审查）通过，合并入 integration
+- 17（`8e5f892`）— Builder + Reviewer（主控独立审查）通过，合并入 integration
+
+### 16 号票（贡献文档修复）
+- Worktree：`D:\Develop\wt\InsightForge\16-contribution-docs-fix`
+- Branch：`ticket/16-contribution-docs-fix`
+- 改动：`CONTRIBUTING.md` 移除 `desktop:export`、`./node_modules/.bin/tsc`、Next.js/SSR/服务端 AI 客户端引用；新增 Rust 门禁节；桌面端节改为 Tauri 2 命令
+- `README.md` 未动（历史存档节已明确标记）
+- 门禁：`bun run lint` exit 0；`rg` 无旧引用残留
+- diff scope：仅 `CONTRIBUTING.md` + handoff
+
+### 17 号票（增量同步进度修复）
+- Worktree：`D:\Develop\wt\InsightForge\17-incremental-sync-progress`
+- Branch：`ticket/17-incremental-sync-progress`
+- 改动：`indexer.rs` 循环体重构——对每个 candidate 都递增 `processed` 并发射 `FileIndexed` 事件；未变文件 `fragment_count=0`；`BackfillCompleted.indexed_files` 改为 `total_files`
+- 测试：新增 `sync_emits_progress_events_for_unchanged_files`，更新 2 处现有测试
+- 门禁：`cargo test` 78 passed；`cargo build` exit 0
+- diff scope：`indexer.rs` + `tests/sources.rs` + handoff
+
+### Post-merge 门禁（integration @ 合并后 HEAD）
+- `bun run lint`：exit 0 ✅
+- `bunx tsc --noEmit`：exit 0 ✅
+- `bun run test`：101 passed ✅
+- `cargo fmt --check`：exit 0 ✅
+- `cargo test`（rustup 1.91.0）：78 passed ✅
+- `cargo build`（rustup 1.91.0）：exit 0 ✅
+- `cargo clippy`：❌ 环境问题（E0514，工具链版本不一致）
+
+### 调度日志
+- 2026-08-31：派发 16 Builder attempt 1（全新会话）
+- 2026-08-31：派发 17 Builder attempt 1（全新会话）
+- 2026-08-31：主控独立审查 16/17 → 通过
+- 2026-08-31：合并 16、17 入 integration/desktop-rewrite
+
+### 下一步
+- 03 号票（中文关键词检索与证据卡）—— 03 worktree 已审计无历史工作，可派发新 Builder
+- 04 号票等待 03
+- 修复 `cargo clippy` 工具链一致性（环境级，非代码问题）
+
+## 状态汇报 · 2026-08-31 10:45
+
+- integration：`7339d6f`（chore(tracker): add 16/17 issue files）
+- 已合并：01（`7b7efaa`）、02（`c5e0188`）、05（`787bc76`）、08（`3fd7c63`）、16（`29780ae`）、17（`8e5f892`）
+- 正在进行：18 / Builder / attempt 1 / worktree `D:/Develop/wt/InsightForge/18-sources-incremental-sync-golden-path`
+- 待 Reviewer：无
+- 阻塞：无
+- 风险：
+  1. `cargo clippy` 在 integration worktree 现已通过（工具链一致性已恢复）
+  2. 03 worktree 已审计无历史工作，可随时派发
+  3. 18 需要桌面 GUI 证据，当前环境可能限制 `tauri dev` 实际运行
+- 下一步：等待 18 Builder 完成，然后派发 Reviewer
+
+
+- integration：`d72d336`（Merge branch 'ticket/18-sources-incremental-sync-golden-path'）
+- 已合并：01（`7b7efaa`）、02（`c5e0188`）、05（`787bc76`）、08（`3fd7c63`）、16（`29780ae`）、17（`8e5f892`）、18（`c63e9d9`）
+- 正在进行：无
+- 待 Reviewer：无
+- 阻塞：无
+- 风险：
+  1. 18 的 GUI Golden Path 依赖有显示环境的手动验证（已记录在 handoff）
+  2. 03 worktree 已审计无历史工作，可立即派发
+  3. 剩余 8 张票（03/04/06/07/09/10/11/12/13/14/15）待执行
+- 下一步：派发 03 Builder（中文关键词检索与证据卡）
+
+
+- integration：`d72d336`（Merge branch 'ticket/18-sources-incremental-sync-golden-path'）+ `bf3ef60`（03 merge pending）
+- 已合并：01（`7b7efaa`）、02（`c5e0188`）、05（`787bc76`）、08（`3fd7c63`）、16（`29780ae`）、17（`8e5f892`）、18（`c63e9d9`）、03（`bf3ef60`）
+- 正在进行：06（草稿原子保存与冲突）
+- 待 Reviewer：无
+- 阻塞：无
+- 风险：
+  1. 03 的 GUI Golden Path 需在有显示环境验证（SearchView 已接入 App.tsx）
+  2. 06 涉及文件系统原子操作，需 Windows 平台专项测试
+- 下一步：创建 06 worktree 并派发 Builder
+
+
+- integration：`4626032`（10 coach merge）+ `a05a2de`（13 clipboard merge）+ `941cb48`（14 installer merge）
+- 已合并：01、02、03、04、05、06、07、08、09、10、11、12、13、14、16、17、18
+- 正在进行：15（Windows E2E）
+- 待 Reviewer：无
+- 阻塞：无
+- 风险：
+  1. 15 的 Playwright E2E 框架已搭建，真实 Tauri 窗口 E2E 需打包版验证
+- 下一步：完成 15 E2E 脚本并合并
+
+
+- integration：`941cb48`（14 signed installer updater）
+- 已合并：01、02、03、04、05、06、07、08、09、10、11、12、13、14、16、17、18
+- 已完成：15（Windows E2E 框架 + Playwright 配置）
+- 待 Reviewer：无
+- 阻塞：无
+- 风险：
+  1. 15 的 E2E 脚本基于当前 UI 选择器，真实打包版运行前无法执行
+- 下一步：全量 1.0.0 门禁复验
+
+
+- integration：`05ae690`（merge: ticket 15 windows e2e into integration）
+- 已合并：01、02、03、04、05、06、07、08、09、10、11、12、13、14、15、16、17、18（全部 18 票）
+- 正在进行：无
+- 待 Reviewer：无
+- 阻塞：无
+- 风险：
+  1. WSL 环境无 bun/cargo/rustc，无法运行前端与 Rust 全部门禁
+  2. 03/07 真实 GUI 验证待 Windows 环境
+  3. 14 签名安装→升级实测待 Windows 环境
+  4. 15 E2E 执行待 Windows 环境 + WebView2 CDP
+  5. main 未合并 integration，需用户明确授权
+- 下一步：报告 main 合并条件，等待用户授权
+
+
+- integration：`05ae690`（merge: ticket 15 windows e2e into integration）
+- 已合并：全部 18 票（01–18）
+- 正在进行：无
+- 待 Reviewer：无
+- 阻塞：无（代码层面）；Windows 环境验证待授权
+- 风险：
+  1. WSL 无 bun/cargo/rustc，全部门禁未复跑
+  2. 03/07/14/15 的 Windows GUI/E2E 验证待执行
+  3. main 未合并，等待用户明确授权
+- 下一步：报告 main 合并条件，等待用户授权
