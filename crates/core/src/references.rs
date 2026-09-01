@@ -75,7 +75,7 @@ pub struct ReferencesService {
 #[allow(dead_code)]
 struct FragmentSnapshot {
     pub fragment_id: i64,
-    pub source_file_id: String,
+    pub source_file_id: i64,
     pub heading_path: String,
     pub start_line: i64,
     pub end_line: i64,
@@ -259,4 +259,228 @@ fn generate_id() -> String {
         .unwrap_or(0)
         .hash(&mut hasher);
     format!("{:x}", hasher.finish())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    /// 向测试库写入一条 knowledge_source + source_file + fragment 链路，
+    /// 返回 (source_id, fragment_id)。
+    fn seed_fragment(repo: &Repository, source_id: &str, fragment_text: &str) -> (String, i64) {
+        let source_id_owned = source_id.to_string();
+        let text_owned = fragment_text.to_string();
+        repo.write(move |conn| {
+            conn.execute(
+                "INSERT INTO knowledge_source (id, name, root_path) VALUES (?1, ?2, ?3)",
+                rusqlite::params![source_id_owned, "Test Source", "/test/root"],
+            )?;
+            conn.execute(
+                "INSERT INTO source_file (id, source_id, rel_path, content_hash, size, mtime_ms)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![1, source_id_owned, "doc.md", "hash1", 100, 0],
+            )?;
+            conn.execute(
+                "INSERT INTO fragment (id, source_file_id, ordinal, heading_path, start_line, end_line, text, content_hash)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                rusqlite::params![1, 1, 0, "Heading", 1, 10, text_owned, "hash2"],
+            )?;
+            Ok(())
+        })
+        .expect("seed_fragment: insert failed");
+        (source_id.to_string(), 1)
+    }
+
+    /// 向测试库写入一条 draft 行（draft_reference.draft_id 的外键依赖）。
+    fn seed_draft(repo: &Repository, draft_id: &str) {
+        let draft_id_owned = draft_id.to_string();
+        repo.write(move |conn| {
+            conn.execute(
+                "INSERT INTO draft (id, path, filename, baseline_hash, baseline_mtime_ms, baseline_size)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![draft_id_owned, "/drafts/test.md", "test.md", "hash", 0, 0],
+            )?;
+            Ok(())
+        })
+        .expect("seed_draft: insert failed");
+    }
+
+    fn setup_service() -> (Arc<Repository>, ReferencesService, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("insightforge.sqlite");
+        let repo = Arc::new(Repository::open(&db_path).unwrap());
+        // draft_reference.draft_id 有外键依赖，预先插入一条 draft
+        seed_draft(&repo, "draft-1");
+        let service = ReferencesService::new(Arc::clone(&repo));
+        (repo, service, dir)
+    }
+
+    #[test]
+    fn create_reference_snapshots_fragment_and_persists() {
+        let (repo, service, _dir) = setup_service();
+        let (source_id, fragment_id) = seed_fragment(&repo, "src-1", "这是一段测试文本，用于验证引用快照。");
+
+        let reference = service
+            .create(&CreateReference {
+                draft_id: "draft-1".to_string(),
+                fragment_id,
+            })
+            .expect("create reference should succeed");
+
+        assert!(!reference.id.is_empty());
+        assert_eq!(reference.draft_id, "draft-1");
+        assert_eq!(reference.fragment_id, fragment_id);
+        assert_eq!(reference.source_id, source_id);
+        assert_eq!(reference.source_name, "Test Source");
+        assert_eq!(reference.rel_path, "doc.md");
+        assert_eq!(reference.heading_path, "Heading");
+        assert_eq!(reference.full_text, "这是一段测试文本，用于验证引用快照。");
+        assert!(!reference.snippet.is_empty());
+        assert_eq!(reference.start_line, 1);
+        assert_eq!(reference.end_line, 10);
+        assert!(!reference.adopted);
+        assert!(!reference.source_deleted);
+        assert!(!reference.created_at.is_empty());
+    }
+
+    #[test]
+    fn create_reference_with_nonexistent_fragment_returns_error() {
+        let (_repo, service, _dir) = setup_service();
+
+        let result = service.create(&CreateReference {
+            draft_id: "draft-1".to_string(),
+            fragment_id: 9999,
+        });
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.code(), "invalid_reference");
+    }
+
+    #[test]
+    fn list_references_returns_created_snapshots_ordered_by_created_at_desc() {
+        let (repo, service, _dir) = setup_service();
+        seed_fragment(&repo, "src-1", "文本一");
+
+        let r1 = service
+            .create(&CreateReference { draft_id: "draft-1".to_string(), fragment_id: 1 })
+            .unwrap();
+        // 微小延迟确保 created_at 不同
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        let r2 = service
+            .create(&CreateReference { draft_id: "draft-1".to_string(), fragment_id: 1 })
+            .unwrap();
+
+        let list = service.list("draft-1").unwrap();
+        assert_eq!(list.len(), 2);
+        // 按 created_at DESC：r2（较新）在前
+        assert_eq!(list[0].id, r2.id);
+        assert_eq!(list[1].id, r1.id);
+    }
+
+    #[test]
+    fn list_references_for_unknown_draft_returns_empty() {
+        let (_repo, service, _dir) = setup_service();
+        let list = service.list("nonexistent-draft").unwrap();
+        assert!(list.is_empty());
+    }
+
+    #[test]
+    fn adopt_marks_reference_as_adopted() {
+        let (repo, service, _dir) = setup_service();
+        seed_fragment(&repo, "src-1", "文本");
+
+        let reference = service
+            .create(&CreateReference { draft_id: "draft-1".to_string(), fragment_id: 1 })
+            .unwrap();
+        assert!(!reference.adopted);
+
+        service.adopt(&reference.id).unwrap();
+
+        let list = service.list("draft-1").unwrap();
+        assert_eq!(list.len(), 1);
+        assert!(list[0].adopted);
+    }
+
+    #[test]
+    fn mark_source_deleted_preserves_snapshot_and_flags_source_unavailable() {
+        let (repo, service, _dir) = setup_service();
+        let (source_id, _) = seed_fragment(&repo, "src-del", "不可变快照文本");
+
+        let reference = service
+            .create(&CreateReference { draft_id: "draft-1".to_string(), fragment_id: 1 })
+            .unwrap();
+        assert!(!reference.source_deleted);
+
+        // 模拟来源删除：标记 source_deleted
+        service.mark_source_deleted(&source_id).unwrap();
+
+        // 引用快照仍然存在
+        let list = service.list("draft-1").unwrap();
+        assert_eq!(list.len(), 1);
+        assert!(list[0].source_deleted);
+        // 快照内容不受影响
+        assert_eq!(list[0].full_text, "不可变快照文本");
+        assert_eq!(list[0].source_name, "Test Source");
+        assert_eq!(list[0].rel_path, "doc.md");
+    }
+
+    #[test]
+    fn mark_source_deleted_only_affects_matching_source() {
+        let (repo, service, _dir) = setup_service();
+        seed_fragment(&repo, "src-a", "来源A的文本");
+        // 为第二个来源插入数据（source_file id=2, fragment id=2）
+        repo.write(move |conn| {
+            conn.execute(
+                "INSERT INTO knowledge_source (id, name, root_path) VALUES (?1, ?2, ?3)",
+                rusqlite::params!["src-b", "Source B", "/test/b"],
+            )?;
+            conn.execute(
+                "INSERT INTO source_file (id, source_id, rel_path, content_hash, size, mtime_ms)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![2, "src-b", "b.md", "h", 10, 0],
+            )?;
+            conn.execute(
+                "INSERT INTO fragment (id, source_file_id, ordinal, heading_path, start_line, end_line, text, content_hash)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                rusqlite::params![2, 2, 0, "", 1, 5, "来源B的文本", "h2"],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+        let ref_a = service
+            .create(&CreateReference { draft_id: "draft-1".to_string(), fragment_id: 1 })
+            .unwrap();
+        let ref_b = service
+            .create(&CreateReference { draft_id: "draft-1".to_string(), fragment_id: 2 })
+            .unwrap();
+
+        // 只标记 src-a 为已删除
+        service.mark_source_deleted("src-a").unwrap();
+
+        let list = service.list("draft-1").unwrap();
+        let a = list.iter().find(|r| r.id == ref_a.id).unwrap();
+        let b = list.iter().find(|r| r.id == ref_b.id).unwrap();
+        assert!(a.source_deleted);
+        assert!(!b.source_deleted);
+    }
+
+    #[test]
+    fn long_text_snippet_is_truncated_with_ellipsis() {
+        let (repo, service, _dir) = setup_service();
+        let long_text = "一".repeat(250);
+        seed_fragment(&repo, "src-1", &long_text);
+
+        let reference = service
+            .create(&CreateReference { draft_id: "draft-1".to_string(), fragment_id: 1 })
+            .unwrap();
+
+        // snippet 最多 200 字符 + 省略号
+        assert!(reference.snippet.chars().count() <= 201);
+        assert!(reference.snippet.ends_with('…'));
+        // full_text 完整保留
+        assert_eq!(reference.full_text.chars().count(), 250);
+    }
 }
