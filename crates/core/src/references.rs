@@ -319,7 +319,8 @@ mod tests {
     #[test]
     fn create_reference_snapshots_fragment_and_persists() {
         let (repo, service, _dir) = setup_service();
-        let (source_id, fragment_id) = seed_fragment(&repo, "src-1", "这是一段测试文本，用于验证引用快照。");
+        let (source_id, fragment_id) =
+            seed_fragment(&repo, "src-1", "这是一段测试文本，用于验证引用快照。");
 
         let reference = service
             .create(&CreateReference {
@@ -364,12 +365,18 @@ mod tests {
         seed_fragment(&repo, "src-1", "文本一");
 
         let r1 = service
-            .create(&CreateReference { draft_id: "draft-1".to_string(), fragment_id: 1 })
+            .create(&CreateReference {
+                draft_id: "draft-1".to_string(),
+                fragment_id: 1,
+            })
             .unwrap();
         // 微小延迟确保 created_at 不同
         std::thread::sleep(std::time::Duration::from_millis(10));
         let r2 = service
-            .create(&CreateReference { draft_id: "draft-1".to_string(), fragment_id: 1 })
+            .create(&CreateReference {
+                draft_id: "draft-1".to_string(),
+                fragment_id: 1,
+            })
             .unwrap();
 
         let list = service.list("draft-1").unwrap();
@@ -392,7 +399,10 @@ mod tests {
         seed_fragment(&repo, "src-1", "文本");
 
         let reference = service
-            .create(&CreateReference { draft_id: "draft-1".to_string(), fragment_id: 1 })
+            .create(&CreateReference {
+                draft_id: "draft-1".to_string(),
+                fragment_id: 1,
+            })
             .unwrap();
         assert!(!reference.adopted);
 
@@ -409,7 +419,10 @@ mod tests {
         let (source_id, _) = seed_fragment(&repo, "src-del", "不可变快照文本");
 
         let reference = service
-            .create(&CreateReference { draft_id: "draft-1".to_string(), fragment_id: 1 })
+            .create(&CreateReference {
+                draft_id: "draft-1".to_string(),
+                fragment_id: 1,
+            })
             .unwrap();
         assert!(!reference.source_deleted);
 
@@ -451,10 +464,16 @@ mod tests {
         .unwrap();
 
         let ref_a = service
-            .create(&CreateReference { draft_id: "draft-1".to_string(), fragment_id: 1 })
+            .create(&CreateReference {
+                draft_id: "draft-1".to_string(),
+                fragment_id: 1,
+            })
             .unwrap();
         let ref_b = service
-            .create(&CreateReference { draft_id: "draft-1".to_string(), fragment_id: 2 })
+            .create(&CreateReference {
+                draft_id: "draft-1".to_string(),
+                fragment_id: 2,
+            })
             .unwrap();
 
         // 只标记 src-a 为已删除
@@ -474,7 +493,10 @@ mod tests {
         seed_fragment(&repo, "src-1", &long_text);
 
         let reference = service
-            .create(&CreateReference { draft_id: "draft-1".to_string(), fragment_id: 1 })
+            .create(&CreateReference {
+                draft_id: "draft-1".to_string(),
+                fragment_id: 1,
+            })
             .unwrap();
 
         // snippet 最多 200 字符 + 省略号
