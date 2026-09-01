@@ -1,0 +1,7 @@
+{
+  "source_removed": false,
+  "snapshot_preserved": true,
+  "source_deleted_ui": false,
+  "console_errors": 0,
+  "method": "CDP Page.handleJavaScriptDialog (setTimeout click + accept confirm)"
+}
