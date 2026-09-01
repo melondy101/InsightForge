@@ -144,6 +144,7 @@ impl DraftsService {
     }
 
     /// 打开草稿：记录当前保存基线。
+    /// 若草稿已存在（同路径），复用已有 ID 与 created_at，仅更新 baseline 与 updated_at。
     pub fn open(&self, filename: &str) -> Result<DraftFile, DraftsError> {
         self.ensure_directory()?;
         let path = self.drafts_dir.join(filename);
@@ -152,14 +153,20 @@ impl DraftsService {
         }
         let baseline = self.read_baseline(&path)?;
         let now = now_iso();
+        let existing = self.find_draft(filename)?;
+        let (id, created_at) = existing
+            .as_ref()
+            .filter(|d| d.path == path.to_string_lossy())
+            .map(|d| (d.id.clone(), d.created_at.clone()))
+            .unwrap_or_else(|| (generate_id(filename), now.clone()));
         let draft = DraftFile {
-            id: generate_id(filename),
+            id,
             path: path.to_string_lossy().to_string(),
             filename: filename.to_string(),
             baseline_hash: baseline.hash,
             baseline_mtime_ms: baseline.mtime_ms,
             baseline_size: baseline.size,
-            created_at: now.clone(),
+            created_at,
             updated_at: now,
         };
         self.upsert_draft(&draft)?;
@@ -374,4 +381,71 @@ fn generate_id(filename: &str) -> String {
         .unwrap_or(0)
         .hash(&mut hasher);
     format!("{:x}", hasher.finish())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    fn setup_service() -> (Arc<Repository>, DraftsService, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("insightforge.sqlite");
+        let repo = Arc::new(Repository::open(&db_path).unwrap());
+        let service = DraftsService::new(Arc::clone(&repo), dir.path().join("drafts"));
+        (repo, service, dir)
+    }
+
+    /// 验证 create → open → open 路径：同路径草稿可被多次 open() 而不触发 UNIQUE 约束。
+    #[test]
+    fn open_existing_draft_reuses_id_and_created_at() {
+        let (_repo, service, _dir) = setup_service();
+
+        // Step 1: create a new draft
+        let d1 = service.create("note.md").expect("create should succeed");
+        assert!(!d1.id.is_empty());
+        let first_id = d1.id.clone();
+        let first_created_at = d1.created_at.clone();
+
+        // Step 2: open the same draft — should reuse id and created_at
+        let d2 = service
+            .open("note.md")
+            .expect("first reopen should succeed");
+        assert_eq!(d2.id, first_id, "open() must reuse the existing draft id");
+        assert_eq!(
+            d2.created_at, first_created_at,
+            "created_at must be preserved"
+        );
+        assert_eq!(d2.path, d1.path);
+
+        // Step 3: open again — still the same id (regression guard)
+        let d3 = service
+            .open("note.md")
+            .expect("second reopen should succeed");
+        assert_eq!(
+            d3.id, first_id,
+            "second open() must still reuse the same id"
+        );
+        assert_eq!(d3.created_at, first_created_at);
+    }
+
+    /// 验证新文件第一次 open() 生成新 draft（无已有记录时走 create 路径）。
+    #[test]
+    fn open_creates_new_draft_when_no_prior_record() {
+        let (_repo, service, dir) = setup_service();
+
+        // Write a file directly into the drafts directory (no prior create() call)
+        let draft_path = dir.path().join("drafts").join("fresh.md");
+        if let Some(parent) = draft_path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(&draft_path, "hello").unwrap();
+
+        let d = service
+            .open("fresh.md")
+            .expect("open on new file should succeed");
+        assert!(!d.id.is_empty());
+        assert_eq!(d.filename, "fresh.md");
+        assert!(d.path.ends_with("fresh.md"));
+    }
 }

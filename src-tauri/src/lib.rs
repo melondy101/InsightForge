@@ -152,8 +152,16 @@ fn sources_pause(
 }
 
 #[tauri::command]
-fn sources_remove(state: State<'_, SourcesState>, id: String) -> Result<(), CommandError> {
-    Ok(state.0.remove(&id)?)
+fn sources_remove(
+    sources_state: State<'_, SourcesState>,
+    references_state: State<'_, ReferencesState>,
+    id: String,
+) -> Result<(), CommandError> {
+    // 标记所有引用此来源的 draft_reference 为 source_deleted（快照保留，仅标记不可用）
+    let ref_id = id.clone();
+    references_state.0.mark_source_deleted(&ref_id)?;
+    // 再清理索引记录
+    Ok(sources_state.0.remove(&id)?)
 }
 
 #[tauri::command]

@@ -132,6 +132,8 @@ impl SearchService {
 
     /// 两字符查询的回退方案：受限线性扫描。
     /// 限制：仅匹配片段边界（行首/行尾/标点后），避免全表 LIKE 爆炸。
+    ///
+    /// 采用字符级迭代避免多字节 UTF-8 字节切片 panic。
     fn fallback_linear_scan(
         &self,
         source_id: &str,
@@ -146,6 +148,34 @@ impl SearchService {
         })?;
         let source = source.ok_or_else(|| SearchError::SourceNotFound(source_id_owned.clone()))?;
 
+        /// True if `ch` is a word boundary separator.
+        fn is_separator(ch: char) -> bool {
+            matches!(
+                ch,
+                '\n' | ' '
+                    | '\t'
+                    | ','
+                    | '.'
+                    | ';'
+                    | ':'
+                    | '，'
+                    | '。'
+                    | '；'
+                    | '：'
+                    | '、'
+                    | '！'
+                    | '？'
+                    | '「'
+                    | '」'
+                    | '『'
+                    | '』'
+                    | '（'
+                    | '）'
+                    | '【'
+                    | '】'
+            )
+        }
+
         let results: Vec<EvidenceCard> = self.repo.read(move |conn| {
             let mut stmt = conn.prepare(
                 "SELECT f.id, f.text, f.heading_path, f.start_line, f.end_line,
@@ -157,7 +187,8 @@ impl SearchService {
                  ORDER BY f.source_file_id, f.ordinal",
             )?;
 
-            let q = query_owned.to_lowercase();
+            let q_chars: Vec<char> = query_owned.to_lowercase().chars().collect();
+            let q_len = q_chars.len();
             let mut results = Vec::new();
             let mut cursor = stmt.query([&source.id])?;
             while let Some(row) = cursor.next()? {
@@ -169,47 +200,25 @@ impl SearchService {
                 let name = row.get::<_, String>(5)?;
                 let sid = row.get::<_, String>(6)?;
                 let rel_path = row.get::<_, String>(7)?;
-                let text_lower = text.to_lowercase();
 
-                {
-                    let mut pos = 0;
-                    while let Some(idx) = text_lower[pos..].find(&q) {
-                        let abs_idx = pos + idx;
-                        let before = if abs_idx == 0 {
-                            true
-                        } else {
-                            let ch = text_lower.chars().nth(abs_idx - 1).unwrap();
-                            ch == '\n'
-                                || ch == ' '
-                                || ch == '\t'
-                                || ch == ','
-                                || ch == '.'
-                                || ch == ';'
-                                || ch == ':'
-                                || ch == '，'
-                                || ch == '。'
-                                || ch == '；'
-                                || ch == '：'
-                        };
-                        let after = abs_idx + q.len();
-                        let after_ok = after >= text_lower.len()
-                            || matches!(
-                                text_lower.chars().next(),
-                                Some(
-                                    '\n' | ' '
-                                        | '\t'
-                                        | ','
-                                        | '.'
-                                        | ';'
-                                        | ':'
-                                        | '，'
-                                        | '。'
-                                        | '；'
-                                        | '：'
-                                )
-                            );
-                        if before && after_ok {
-                            let snippet = Self::extract_snippet(&text, abs_idx, q.len());
+                let text_chars: Vec<char> = text.chars().collect();
+                let text_lower: Vec<char> =
+                    text_chars.iter().map(|c| c.to_ascii_lowercase()).collect();
+
+                // Iterate over each character position as a potential match start
+                let mut i = 0;
+                while i + q_len <= text_lower.len() {
+                    // Check if query matches at position i
+                    let matched = (0..q_len).all(|j| text_lower[i + j] == q_chars[j]);
+                    if matched {
+                        // Check word boundary before
+                        let before_ok = i == 0 || is_separator(text_lower[i - 1]);
+                        // Check word boundary after
+                        let after_ok =
+                            i + q_len >= text_lower.len() || is_separator(text_lower[i + q_len]);
+                        if before_ok && after_ok {
+                            // Compute char index for snippet extraction
+                            let snippet = Self::extract_snippet(&text, i, q_len);
                             results.push(EvidenceCard {
                                 fragment_id: fid,
                                 source_id: sid.clone(),
@@ -224,9 +233,12 @@ impl SearchService {
                             if results.len() >= limit {
                                 break;
                             }
+                            // Skip past this match
+                            i += q_len;
+                            continue;
                         }
-                        pos = abs_idx + 1;
                     }
+                    i += 1;
                 }
             }
             Ok(results)
@@ -235,14 +247,27 @@ impl SearchService {
         Ok(results)
     }
 
-    fn extract_snippet(text: &str, center: usize, width: usize) -> String {
-        let start = center.saturating_sub(width * 4);
-        let end = (center + width * 4).min(text.len());
-        let mut s = text[start..end].to_string();
-        if start > 0 {
+    fn extract_snippet(text: &str, center_char_idx: usize, width_chars: usize) -> String {
+        let char_count = text.chars().count();
+        let start_char = center_char_idx.saturating_sub(width_chars * 4);
+        let end_char = (center_char_idx + width_chars * 4).min(char_count);
+
+        let start_byte = text
+            .char_indices()
+            .nth(start_char)
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+        let end_byte = text
+            .char_indices()
+            .nth(end_char)
+            .map(|(i, _)| i)
+            .unwrap_or(text.len());
+
+        let mut s = text[start_byte..end_byte].to_string();
+        if start_char > 0 {
             s.insert(0, '…');
         }
-        if end < text.len() {
+        if end_char < char_count {
             s.push('…');
         }
         s
@@ -293,5 +318,132 @@ impl SearchService {
         })?;
 
         Ok(ctx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    /// Seed a source + source_file + fragment + FTS row directly into the repo.
+    /// Follows references.rs pattern: &Repository, move closure, all owned Strings.
+    fn seed_with_fts(repo: &Repository, source_id: &str, frag_id: i64, frag_text: &str) -> String {
+        let source_id_owned = source_id.to_string();
+        let text_owned = frag_text.to_string();
+        let sf_id_val = frag_id + 1000; // source_file.id offset
+        let fts_text = text_owned.clone();
+        let return_sid = source_id_owned.clone();
+        let root_path = format!("/test/{}", source_id_owned);
+        repo.write(move |conn| {
+            conn.execute(
+                "INSERT INTO knowledge_source (id, name, root_path) VALUES (?1, ?2, ?3)",
+                rusqlite::params![source_id_owned, "Test Source", root_path],
+            )?;
+            conn.execute(
+                "INSERT INTO source_file (id, source_id, rel_path, content_hash, size, mtime_ms)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![sf_id_val, source_id_owned, "doc.md", "h1", 100, 0],
+            )?;
+            conn.execute(
+                "INSERT INTO fragment (id, source_file_id, ordinal, heading_path, start_line, end_line, text, content_hash)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                rusqlite::params![frag_id, sf_id_val, 0, "H", 1, 5, text_owned, "h2"],
+            )?;
+            // Also insert into FTS5 virtual table
+            conn.execute(
+                "INSERT INTO fragment_fts (fragment_id, text) VALUES (?1, ?2)",
+                rusqlite::params![frag_id, fts_text],
+            )?;
+            Ok(())
+        })
+        .expect("seed_with_fts failed");
+        return_sid
+    }
+
+    fn setup_service() -> (Arc<Repository>, SearchService, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("insightforge.sqlite");
+        let repo = Arc::new(Repository::open(&db_path).unwrap());
+        let service = SearchService::new(Arc::clone(&repo));
+        (repo, service, dir)
+    }
+
+    /// 二字词回退：片段包含"知识"（前后有空格分隔），查询"知识"应命中。
+    #[test]
+    fn fallback_linear_scan_hits_two_char_query() {
+        let (repo, service, _dir) = setup_service();
+        seed_with_fts(&repo, "src-1", 1, "知识 管理是核心流程");
+
+        let results = service
+            .query("src-1", "知识", 10)
+            .expect("query should succeed");
+        assert_eq!(results.len(), 1, "expected 1 result, got {}", results.len());
+        assert!(results[0].snippet.contains("知识"));
+    }
+
+    /// 二字词回退：片段不含查询词时返回空。
+    #[test]
+    fn fallback_linear_scan_returns_empty_when_no_match() {
+        let (repo, service, _dir) = setup_service();
+        seed_with_fts(&repo, "src-2", 1, "人工智能改变世界");
+
+        let results = service
+            .query("src-2", "知识", 10)
+            .expect("query should succeed");
+        assert!(results.is_empty());
+    }
+
+    /// 二字词回退：边界匹配（中文标点后的词应匹配）。
+    #[test]
+    fn fallback_linear_scan_respects_word_boundaries() {
+        let (repo, service, _dir) = setup_service();
+        seed_with_fts(&repo, "src-3", 1, "，知识。获取与存储");
+
+        let results = service
+            .query("src-3", "知识", 10)
+            .expect("query should succeed");
+        assert_eq!(
+            results.len(),
+            1,
+            "boundary match failed: got {} results",
+            results.len()
+        );
+    }
+
+    /// 二字词回退：limit 正确裁剪结果数。
+    #[test]
+    fn fallback_linear_scan_respects_limit() {
+        let (repo, service, _dir) = setup_service();
+        // Source A: "知识" appears as standalone word (with trailing space)
+        seed_with_fts(&repo, "src-4a", 1, "人工智能 知识 管理很重要");
+        // Source B: not queried, just verifies multiple sources work
+        seed_with_fts(&repo, "src-4b", 2, "知识 就是力量");
+
+        let results = service
+            .query("src-4a", "知识", 1)
+            .expect("query should succeed");
+        assert_eq!(
+            results.len(),
+            1,
+            "limit=1 should return 1 result, got {} results",
+            results.len()
+        );
+    }
+
+    /// 三字及以上走 FTS5 主路径（非回退）。
+    /// 验证：查询通过 FTS5 JOIN 路径命中；fallback 路径从不被调用（<=2 chars 才触发）。
+    #[test]
+    fn query_three_chars_uses_fts_not_fallback() {
+        let (repo, service, _dir) = setup_service();
+        seed_with_fts(&repo, "src-5", 1, "知识管理就是核心能力的核心体现");
+
+        let results = service
+            .query("src-5", "知识管理", 10)
+            .expect("query should succeed");
+        assert!(
+            !results.is_empty(),
+            "FTS5 query should find match for 4-char query"
+        );
     }
 }

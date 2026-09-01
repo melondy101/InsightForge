@@ -179,9 +179,8 @@ function SourceRow({ source, progress, t, onPause, onSync, onReconcile, onRebuil
 /** 来源管理视图：目录授权、忽略规则展示、来源列表与事件驱动的索引进度。 */
 export function SourcesView() {
   const { t } = useTranslation();
-  const { sources: localSources, progress, defaultIgnoreGlobs, error, actions } = useSources();
+  const { sources, progress, defaultIgnoreGlobs, error, actions } = useSources();
   const appState = useAppState();
-  const sources = appState.sources.length > 0 ? appState.sources : localSources;
 
   return (
     <div className="sources" data-el="sources-view">
