@@ -46,8 +46,11 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "",
-      "endpoints": []
+      "endpoints": ["https://localhost/updater-dev.json"],
+      "pubkey": "dW50cnVzdGVkIGJ5IHNpbW9sZiBvciB0ZXN0",
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }
