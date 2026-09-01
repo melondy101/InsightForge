@@ -166,3 +166,18 @@
   2. 03/07/14/15 的 Windows GUI/E2E 验证待执行
   3. main 未合并，等待用户明确授权
 - 下一步：报告 main 合并条件，等待用户授权
+
+## 2026-09-01 — C-13-Fix 闭环
+
+- integration：`78fe279`（fix(c-13): P1 drafts UNIQUE + P2 source-delete mark + UI sync + UTF-8 safe two-char scan + 11 tests）
+- Builder：1 次提交，单一 worktree `D:/Develop/wt/InsightForge/c-13-fix`
+- Reviewer verdict：PASS（5/7 验收明确 PASS，2/7 PASS pending CDP，0 FAIL，0 P0/P1）
+- 关键修复：
+  1. P1 `crates/core/src/drafts.rs::open()` — 复用 `find_draft` 已有 id/created_at，消除 `UNIQUE(draft.path)` 重打开冲突
+  2. P2 `src-tauri/src/lib.rs::sources_remove` — 调用前 `references_mark_source_deleted`，删除后引用快照保留
+  3. P2 `src/sources/SourcesView.tsx` — 移除 stale `appState.sources` fallback，删除即反映
+  4. P2 `crates/core/src/search.rs::fallback_linear_scan` — 字符级迭代，UTF-8 多字节字符不再 panic
+- 门禁复跑：Rust 96/96 测试通过，clippy/fmt/build 全 PASS；前端 114/114 测试通过，ESLint PASS；`bunx tsc --noEmit` 预存 vite/client type def 缺失（c-13-fix worktree 无 node_modules），非 C-13 引入
+- merge：`ticket/c-13-fix` 已 fast-forward 合入 `integration/desktop-rewrite`
+- 未 push：14/15 仍 BLOCKED，无 Windows 签名证书与 WebView2 自动化路径；用户未豁免
+- 下一步：等待用户在真实桌面环境复验 CDP Golden Path，或提供 14/15 外部条件，或明确豁免 BLOCKED 状态以便继续推进 integration → main

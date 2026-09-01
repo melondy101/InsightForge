@@ -13,4 +13,4 @@
 
 > 2026-09-01 C-03-07 票验证：原生 Tauri GUI Golden Path 通过 WebView2 CDP 驱动完整闭环——来源添加/索引 → 草稿创建 → 搜索 → 固定到草稿 → 引用视图显示真实数据（来源/文件/行号/snippet/采用按钮）→ 删除来源 → 快照保留。P1-1 修复了 references 排序缺陷（now_iso 缺失 %S 导致跨秒字典序反转，改为 %Y-%m-%dT%H:%M:%S.%6fZ + rowid DESC 兜底，确定性时间注入测试 20/20 循环全绿）。
 >
-> 预存缺口（非本票引入）：`sources_remove` 未自动调用 `references_mark_source_deleted`，删除来源后引用不自动显示"来源已删除"标记。`mark_source_deleted` 方法存在且单测通过，需后续票接入删除流程。
+> 2026-09-01 C-13-Fix 闭环：预存缺口已修复。`src-tauri/src/lib.rs::sources_remove` 现在在调用 `Sources::remove` 前先调用 `references_mark_source_deleted`，删除来源后所有引用快照保留且 `source_deleted=1` 被持久化。`SourcesView` 同时移除 stale `appState.sources` fallback，删除来源后 UI 立即反映（无需 reload）。CDP 渲染验证待真实桌面环境复验。

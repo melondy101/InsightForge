@@ -5,17 +5,18 @@
 
 ## 当前状态（2026-09-01）
 
-- **integration SHA**：`f5beb4e`（updater Finalizer 已合入）。
-- **main SHA**：`baf7574`（尚未合并 desktop rewrite）。
+- **integration SHA**：`78fe279`（C-13-Fix 已合入：P1 drafts.rs open() UNIQUE + P2 source 删除 mark + UI sync + UTF-8 safe two-char fallback，11 新增测试）。
+- **main SHA**：`9df5844`（尚未合并 desktop rewrite）。
 - **集成工作树**：干净。
-- **已确认代码门禁**：前端安装、类型检查、lint、114 项测试、构建；Rust fmt、clippy、92 项测试、构建均已通过。合并前应在目标提交上复跑并保存原始输出。
+- **已确认代码门禁**（`78fe279` 上复跑）：Rust fmt、clippy（-D warnings）、build、96 项测试均通过；前端测试 114 项、ESLint 通过；`bunx tsc --noEmit` 在 c-13-fix worktree 因 vite/client type def 缺失报 1（预存环境问题，非 C-13 引入）。
 
 ## 必须满足的合并条件
 
 | 条件 | 状态 | 闭环标准 |
 | --- | --- | --- |
-| P0 代码缺陷 | 已解除 | `__demo__` 残留、updater 配置 schema、release 配置注入均已修复。 |
-| 03/07 原生 GUI Golden Path | 进行中 | 在真实 Tauri 桌面端完成“搜索 → 固定 → 引用 → 草稿”并保存可复现证据。 |
+| P0 代码缺陷 | 已解除 | `__demo__` 残留、updater 配置 schema、release 配置注入、C-13 P1 drafts UNIQUE 已修复。 |
+| C-13-Fix 验收 | 已闭环（5/7 PASS，2/7 PASS pending CDP） | P1 drafts.rs open() UNIQUE、P2 sources_remove→mark_source_deleted、P2 SourcesView 实时刷新、P2 UTF-8 safe two-char fallback 全过；CDP Golden Path 待真实桌面环境复验。详见 |
+| 03/07 原生 GUI Golden Path | 进行中 | C-13 修复已在 integration 落地，但完整复验（添加→创建→搜索→固定→引用→删除→快照保留）需在真实 Tauri 桌面端重跑 WebView2 CDP 驱动。 |
 | 14 签名安装与升级 | BLOCKED | 提供 Windows 签名证书、实际 updater 发布端点及安装升级实测证据。 |
 | 15 Windows 安装包 E2E | BLOCKED | 提供签名安装包与可连接的 WebView2 自动化路径，完成端到端测试。 |
 | 全量门禁 | 待合并前复跑 | 在将要合并的集成 SHA 上执行前端与 Rust 门禁，并记录原始输出。 |
@@ -23,16 +24,19 @@
 
 ## 证据与交接
 
-- 03/07：`.scratch/desktop-rewrite/handoffs/03-07-finalizer-handoff.md`
+- C-13-Fix：`.scratch/desktop-rewrite/handoffs/c-13-fix-handoff.md`（Builder + Reviewer PASS）
+- 03/07：`.scratch/desktop-rewrite/handoffs/03-07-finalizer-handoff.md`、`.scratch/desktop-rewrite/handoffs/03-07-native-gui-closure-handoff.md`
 - 14：`.scratch/desktop-rewrite/handoffs/14-config-fix-handoff.md`、`.scratch/desktop-rewrite/handoffs/14-finalizer-updater-handoff.md`
 - 15：`.scratch/desktop-rewrite/handoffs/15-handoff.md`
 - 基础设施解除阻塞：`.scratch/desktop-rewrite/handoffs/gate-unblock-infra-handoff.md`
 - 浏览器 Golden Path 记录：`.scratch/desktop-rewrite/golden-path/GOLDEN-PATH-EVIDENCE.md`
+- WebView2 CDP 证据：`.scratch/desktop-rewrite/golden-path/native-gui-cdp/`（C-13 修复需在新 fixture 上重跑）
 
 ## 合并前的执行顺序
 
-1. 关闭 03/07 原生 GUI 验收，补齐缺失 i18n 文案。
+1. 在真实 Tauri 桌面环境复跑 WebView2 CDP Golden Path（C-13 + 03/07），生成新 JSON/log/截图。
 2. 准备签名证书、发布端点与 WebView2 自动化，关闭或正式维持 14/15 的 BLOCKED 票据。
-3. 在 `f5beb4e` 或其后续最终集成 SHA 上复跑完整门禁。
+3. 在 `78fe279` 或其后续最终集成 SHA 上复跑完整门禁并保存原始输出。
 4. 确认集成 worktree 干净并取得用户的明确合并授权。
-5. 合并后再移除不再使用的 ticket worktree 及其本地分支。
+5. 合并 `integration/desktop-rewrite` → `main` 后复跑门禁，再 push main。
+6. 合并后再移除不再使用的 ticket worktree 及其本地分支。
