@@ -6,6 +6,7 @@ description = "InsightForge 桌面壳（Tauri 2）：窗口与启动装配，业
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+serde_json = "1"
 
 [dependencies]
 insightforge-core = { path = "../crates/core" }

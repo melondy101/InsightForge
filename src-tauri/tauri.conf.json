@@ -41,17 +41,15 @@
     ],
     "windows": {
       "certificateThumbprint": "${env.INSIGHTFORGE_CERT_THUMBPRINT}",
-      "timestampUrl": "http://timestamp.digicert.com"
+      "timestampUrl": "https://timestamp.digicert.com"
     }
   },
   "plugins": {
     "updater": {
-      "endpoints": {
-        "default": "${env.INSIGHTFORGE_UPDATER_ENDPOINT}"
-      },
+      "endpoints": ["https://localhost/updater-dev.json"],
+      "pubkey": "dW50cnVzdGVkIGJ5IHNpbW9sZiBvciB0ZXN0",
       "windows": {
-        "installMode": "passive",
-        "installerName": "InsightForge-Setup-{{version}}.exe"
+        "installMode": "passive"
       }
     }
   }

@@ -458,6 +458,7 @@ fn updater_pubkey() -> String {
         Err(_) => "dW50cnVzdGVkIGJ5IHNpbW9sZiBvciB0ZXN0".to_string(),
     }
 }
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -611,5 +612,76 @@ mod updater_tests {
         std::env::set_var("INSIGHTFORGE_UPDATER_PUBKEY", "env-pubkey");
         assert_eq!(updater_pubkey(), "env-pubkey");
         std::env::remove_var("INSIGHTFORGE_UPDATER_PUBKEY");
+    }
+
+    // ---- tauri.conf.json 静态校验（防止 schema 回退）----
+
+    fn load_tauri_conf() -> serde_json::Value {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let conf_path = std::path::Path::new(manifest_dir).join("tauri.conf.json");
+        let raw = std::fs::read_to_string(&conf_path)
+            .unwrap_or_else(|e| panic!("cannot read tauri.conf.json: {e}"));
+        serde_json::from_str(&raw)
+            .unwrap_or_else(|e| panic!("tauri.conf.json is not valid JSON: {e}"))
+    }
+
+    /// plugins.updater.endpoints 必须为字符串数组（Vec<Url>），不得为 map。
+    /// 旧 bug：写成 { "default": "..." } 导致反序列化 panic（invalid type: map, expected a sequence）。
+    #[test]
+    fn updater_endpoints_is_array() {
+        let conf = load_tauri_conf();
+        let endpoints = &conf["plugins"]["updater"]["endpoints"];
+        assert!(
+            endpoints.is_array(),
+            "plugins.updater.endpoints must be an array (Vec<Url>), found: {}",
+            endpoints
+        );
+        let arr = endpoints.as_array().expect("endpoints is array");
+        assert_eq!(arr.len(), 1, "endpoints should have exactly one entry");
+        assert!(
+            arr[0].is_string(),
+            "endpoints[0] must be a string URL, found: {}",
+            arr[0]
+        );
+    }
+
+    /// plugins.updater.pubkey 必须存在（UpdaterConfig 反序列化必填字段）。
+    #[test]
+    fn updater_pubkey_field_present() {
+        let conf = load_tauri_conf();
+        let pubkey = &conf["plugins"]["updater"]["pubkey"];
+        assert!(
+            pubkey.is_string(),
+            "plugins.updater.pubkey must be a string, found: {}",
+            pubkey
+        );
+    }
+
+    /// plugins.updater.windows 不得包含非法字段 installerName（仅 installer_args / install_mode 合法）。
+    #[test]
+    fn updater_windows_no_illegal_fields() {
+        let conf = load_tauri_conf();
+        let windows = &conf["plugins"]["updater"]["windows"];
+        if let Some(obj) = windows.as_object() {
+            for key in obj.keys() {
+                assert!(
+                    key == "installMode" || key == "installerArgs",
+                    "plugins.updater.windows has illegal field '{key}' (allowed: installMode, installerArgs)"
+                );
+            }
+        }
+    }
+
+    /// bundle.windows.timestampUrl 必须使用 HTTPS（P1 安全风险修复）。
+    #[test]
+    fn timestamp_url_is_https() {
+        let conf = load_tauri_conf();
+        let ts_url = conf["bundle"]["windows"]["timestampUrl"]
+            .as_str()
+            .expect("bundle.windows.timestampUrl must be a string");
+        assert!(
+            ts_url.starts_with("https://"),
+            "bundle.windows.timestampUrl must use HTTPS, found: {ts_url}"
+        );
     }
 }
