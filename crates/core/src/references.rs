@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use thiserror::Error;
 
 use crate::repository::Repository;
@@ -92,6 +92,15 @@ impl ReferencesService {
 
     /// 为草稿创建引用快照。
     pub fn create(&self, input: &CreateReference) -> Result<Reference, ReferencesError> {
+        self.create_with_time(input, Utc::now())
+    }
+
+    /// 为草稿创建引用快照（注入确定性时间，便于测试）。
+    pub fn create_with_time(
+        &self,
+        input: &CreateReference,
+        now: DateTime<Utc>,
+    ) -> Result<Reference, ReferencesError> {
         let fragment_id = input.fragment_id;
         let snapshot_result = self.repo.read(move |conn| {
             let mut stmt = conn.prepare(
@@ -129,7 +138,7 @@ impl ReferencesService {
             Err(err) => return Err(ReferencesError::Repository(err)),
         };
 
-        let now = now_iso();
+        let now = now_iso(now);
         let reference = Reference {
             id: generate_id(),
             draft_id: input.draft_id.clone(),
@@ -186,7 +195,7 @@ impl ReferencesService {
                         snippet, full_text, start_line, end_line, adopted, source_deleted, created_at
                  FROM draft_reference
                  WHERE draft_id = ?1
-                 ORDER BY created_at DESC",
+                 ORDER BY created_at DESC, rowid DESC",
             )?;
             let rows = stmt.query_map(rusqlite::params![draft_id], |row| {
                 Ok(Reference {
@@ -247,8 +256,8 @@ fn extract_snippet(text: &str, max_chars: usize) -> String {
     s
 }
 
-fn now_iso() -> String {
-    Utc::now().format("%Y-%m-%dT%H:%M:%fZ").to_string()
+fn now_iso(now: DateTime<Utc>) -> String {
+    now.format("%Y-%m-%dT%H:%M:%S.%6fZ").to_string()
 }
 
 fn generate_id() -> String {
@@ -364,24 +373,42 @@ mod tests {
         let (repo, service, _dir) = setup_service();
         seed_fragment(&repo, "src-1", "文本一");
 
+        // Deterministic timestamps: r1 earlier (us=099999), r2 later (us=100000).
+        // Under %f variable-width: r1="...05.99999Z", r2="...05.1Z",
+        // lexicographic DESC wrongly puts r1 (earlier) first. %6f fixed-width makes lex=time.
+        // Cross-second boundary: t1 at 5.9s, t2 at 6.1s.
+        // Old format "%Y-%m-%dT%H:%M:%fZ" omits %S, so t1="...00:900000000Z" and
+        // t2="...00:100000000Z"; lexicographic DESC puts t1 first — WRONG.
+        // Fixed format "%Y-%m-%dT%H:%M:%S.%6fZ" restores seconds, making lex=time.
+        let t1 = chrono::DateTime::parse_from_rfc3339("2024-01-01T00:00:05.900000Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let t2 = chrono::DateTime::parse_from_rfc3339("2024-01-01T00:00:06.100000Z")
+            .unwrap()
+            .with_timezone(&Utc);
+
         let r1 = service
-            .create(&CreateReference {
-                draft_id: "draft-1".to_string(),
-                fragment_id: 1,
-            })
+            .create_with_time(
+                &CreateReference {
+                    draft_id: "draft-1".to_string(),
+                    fragment_id: 1,
+                },
+                t1,
+            )
             .unwrap();
-        // 微小延迟确保 created_at 不同
-        std::thread::sleep(std::time::Duration::from_millis(10));
         let r2 = service
-            .create(&CreateReference {
-                draft_id: "draft-1".to_string(),
-                fragment_id: 1,
-            })
+            .create_with_time(
+                &CreateReference {
+                    draft_id: "draft-1".to_string(),
+                    fragment_id: 1,
+                },
+                t2,
+            )
             .unwrap();
 
         let list = service.list("draft-1").unwrap();
         assert_eq!(list.len(), 2);
-        // 按 created_at DESC：r2（较新）在前
+        // created_at DESC: r2 (newer) first
         assert_eq!(list[0].id, r2.id);
         assert_eq!(list[1].id, r1.id);
     }

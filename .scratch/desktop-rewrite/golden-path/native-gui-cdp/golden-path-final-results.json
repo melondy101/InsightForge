@@ -1,0 +1,32 @@
+{
+  "steps": [
+    "[INIT] Connected to CDP",
+    "[DRAFT] Navigate to Drafts and open cdp-test-draft.md",
+    "[STEP3] Navigate to Search",
+    "[STEP3] Enter query '知识管理' and submit",
+    "[STEP3] PASS: Search returned evidence cards with pin buttons",
+    "[STEP3] Click first '固定到草稿' button via DOM click()",
+    "[STEP3]   clicked pin button: 固定到草稿",
+    "[STEP3]   Pin button after click: '已固定'",
+    "[STEP4] Navigate to References view",
+    "[STEP4]   References text: 织知 InsightForge\n工作台\n来源管理\n草稿\n引用\n思考卡\n检索\n设置\n引用\nCDP测试来源knowledge-management.md5-8\n\n## 知识管理的核心流程 知识管理包括四个核心流程：知识获取、知识存储、知识共享和知识应用。\n\n采用",
+    "[STEP4] PASS: Reference visible with source content",
+    "[STEP4]   Buttons: 工作台 | 来源管理 | 草稿 | 引用 | 思考卡 | 检索 | 设置 | 采用",
+    "[STEP5] Navigate to Sources view",
+    "[STEP5] Click '移除' button via DOM click()",
+    "[STEP5]   clicked remove button",
+    "[STEP5] PASS: Source removed from list (checking list area)",
+    "[STEP5]   Sources list content: 来源列表名称路径状态文件数进度操作CDP测试来源D:\\Develop\\wt\\InsightForge\\_e2e-source-cdp空闲1同步收敛变更重建索引暂停移除",
+    "[STEP6] Navigate to References view",
+    "[STEP6]   References text after delete: 织知 InsightForge\n工作台\n来源管理\n草稿\n引用\n思考卡\n检索\n设置\n引用\nCDP测试来源knowledge-management.md5-8\n\n## 知识管理的核心流程 知识管理包括四个核心流程：知识获取、知识存储、知识共享和知识应用。\n\n采用",
+    "[STEP6] PASS: Reference snapshot content preserved after source deletion",
+    "[STEP6]   Note: sourceDeleted marker not found in visible text (may be CSS class/attr)",
+    "[FINAL] Checking for console errors and i18n leaks",
+    "[FINAL] Console errors: 0",
+    "[FINAL] i18n key leaks: none"
+  ],
+  "console_errors": 0,
+  "i18n_leaks": [],
+  "snapshot_preserved": true,
+  "source_deleted_marker": false
+}

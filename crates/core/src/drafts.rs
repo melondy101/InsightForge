@@ -362,7 +362,7 @@ impl DraftsService {
 }
 
 fn now_iso() -> String {
-    Utc::now().format("%Y-%m-%dT%H:%M:%fZ").to_string()
+    Utc::now().format("%Y-%m-%dT%H:%M:%S.%6fZ").to_string()
 }
 
 fn generate_id(filename: &str) -> String {
