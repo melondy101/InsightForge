@@ -83,6 +83,9 @@
     "contextClose": "关闭",
     "openContext": "打开上下文",
     "rank": "相关度 {{bm25}}",
+    "pinToDraft": "固定到草稿",
+    "pinSuccess": "已固定",
+    "pinNoDraft": "请先打开草稿",
     "error": {
       "repository_error": "数据库操作失败",
       "source_not_found": "来源不存在或已被移除",

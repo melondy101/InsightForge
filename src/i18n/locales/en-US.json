@@ -83,6 +83,9 @@
     "contextClose": "Close",
     "openContext": "Open context",
     "rank": "Rank {{bm25}}",
+    "pinToDraft": "Pin to draft",
+    "pinSuccess": "Pinned",
+    "pinNoDraft": "Open a draft first",
     "error": {
       "repository_error": "Database operation failed",
       "source_not_found": "Source not found or already removed",
