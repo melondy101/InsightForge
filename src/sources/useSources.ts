@@ -27,6 +27,7 @@ export interface SourcesActions {
   reconcile: (id: string) => Promise<void>;
   rebuildIndex: (id: string) => Promise<void>;
   setSyncInterval: (id: string, intervalMinutes: number) => Promise<void>;
+  refresh: () => Promise<void>;
   dismissError: () => void;
 }
 
@@ -133,6 +134,7 @@ export function useSources(): SourcesModel {
       rebuildIndex: (id) => run(() => sourcesApi.rebuildIndex(id)),
       setSyncInterval: (id, intervalMinutes) =>
         run(() => sourcesApi.setSyncInterval(id, intervalMinutes)),
+      refresh,
       dismissError: () => setError(null),
     };
   }, [refresh]);

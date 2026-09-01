@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { useDrafts } from './useDrafts';
-import { useAppState } from '../AppStateContext';
+import { useDraftsModel } from '../AppStateContext';
 
 function DraftsListView({ drafts, onOpen }: { drafts: { filename: string; updatedAt: string }[]; onOpen: (f: string) => void }) {
   const { t } = useTranslation();
@@ -52,16 +51,14 @@ function ConflictDialog({
 export function DraftsView() {
   const { t } = useTranslation();
   const {
-    drafts: localDrafts,
-    activeDraft: localActiveDraft,
+    drafts,
+    activeDraft,
     content,
     status,
     conflict,
     error,
     actions,
-  } = useDrafts();
-  const appState = useAppState();
-  const activeDraft = appState.activeDraft ?? localActiveDraft;
+  } = useDraftsModel();
 
   const handleCreate = async () => {
     const filename = prompt(t('drafts.promptFilename') as string) ?? '';
@@ -134,7 +131,9 @@ export function DraftsView() {
               <textarea
                 className="drafts-editor__textarea"
                 value={content}
-                onChange={(e) => (e.target as HTMLTextAreaElement).value}
+                onChange={(e) => {
+                  void e.target.value;
+                }}
                 readOnly
               />
             </>

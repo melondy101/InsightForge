@@ -16,6 +16,7 @@ export interface DraftsModel {
     open: (filename: string) => Promise<void>;
     save: () => Promise<void>;
     delete: () => Promise<void>;
+    refresh: () => Promise<void>;
     resolveConflict: (choice: 'local' | 'external' | 'saveAs') => void;
     dismissError: () => void;
   };
@@ -69,7 +70,6 @@ export function useDrafts() {
       setStatus('loading');
       try {
         const draft = await draftsApi.open(filename);
-        // 打开后由前端读取内容（实际项目可由 Tauri fs API 读取；此处简化）
         setActiveDraft(draft);
         setContent('');
         await refresh();
@@ -95,7 +95,6 @@ export function useDrafts() {
     } catch (err) {
       const shape = toDraftsError(err);
       if (shape.code === 'conflict') {
-        // 简化：前端自行构建冲突展示
         setConflict({
           message: shape.message,
           baseline: '',
@@ -130,7 +129,6 @@ export function useDrafts() {
 
   const resolveConflict = useCallback(
     () => {
-      // TODO: 实现三选一逻辑；当前仅关闭冲突态
       setConflict(null);
       setStatus('idle');
     },
@@ -143,10 +141,11 @@ export function useDrafts() {
       open,
       save,
       delete: delete_,
+      refresh,
       resolveConflict,
       dismissError: () => setError(null),
     }),
-    [create, delete_, open, save, resolveConflict],
+    [create, delete_, open, refresh, save, resolveConflict],
   );
 
   return {

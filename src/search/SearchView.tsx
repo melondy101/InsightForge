@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { searchApi, type EvidenceCard, type FragmentContext, type SearchErrorShape, toSearchError } from './api';
+import { referencesApi } from '../references/api';
 import { useAppState } from '../AppStateContext';
 
 function errorText(
@@ -26,12 +27,14 @@ interface SearchViewProps {
 
 export function SearchView({ sourceId, sourceName }: SearchViewProps) {
   const { t } = useTranslation();
-  const appState = useAppState();
+  const { activeDraft } = useAppState();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<EvidenceCard[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<SearchErrorShape | null>(null);
   const [context, setContext] = useState<FragmentContext | null>(null);
+  const [pinnedFragmentId, setPinnedFragmentId] = useState<number | null>(null);
+  const [pinError, setPinError] = useState<string | null>(null);
 
   const canSearch = !loading && query.trim().length > 0;
 
@@ -67,6 +70,20 @@ export function SearchView({ sourceId, sourceName }: SearchViewProps) {
     }
   }
 
+  async function handlePinToDraft(card: EvidenceCard) {
+    if (!activeDraft) {
+      setPinError(t('search.pinNoDraft'));
+      return;
+    }
+    setPinError(null);
+    try {
+      await referencesApi.create(activeDraft.id, card.fragmentId);
+      setPinnedFragmentId(card.fragmentId);
+    } catch (err) {
+      setPinError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   return (
     <div className="search" data-el="search-view">
       <h2 data-el="search-title">{t('search.title')}</h2>
@@ -75,6 +92,12 @@ export function SearchView({ sourceId, sourceName }: SearchViewProps) {
       {error ? (
         <p className="search__error" data-el="search-error" role="alert">
           {errorText(t, error)}
+        </p>
+      ) : null}
+
+      {pinError ? (
+        <p className="search__error" data-el="search-pin-error" role="alert">
+          {pinError}
         </p>
       ) : null}
 
@@ -140,6 +163,14 @@ export function SearchView({ sourceId, sourceName }: SearchViewProps) {
                     onClick={() => handleOpenContext(card)}
                   >
                     {t('search.openContext')}
+                  </button>
+                  <button
+                    type="button"
+                    data-el="search-card-pin"
+                    disabled={!activeDraft}
+                    onClick={() => handlePinToDraft(card)}
+                  >
+                    {pinnedFragmentId === card.fragmentId ? t('search.pinSuccess') : t('search.pinToDraft')}
                   </button>
                 </div>
               </li>

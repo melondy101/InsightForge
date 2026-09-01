@@ -3,7 +3,6 @@ import { defineConfig, devices } from '@playwright/test';
 // InsightForge E2E: 仅能在 Windows 10/11 + WebView2 + 签名安装包环境执行
 // 当前 WSL 环境自动跳过
 
-const INSTALLER_PATH = process.env.INSIGHTFORGE_INSTALLER_PATH || './target/installer/InsightForge-Setup.exe';
 const APP_URL = process.env.INSIGHTFORGE_APP_URL || 'http://localhost:1420'; // dev fallback，实际使用 WebView2 CDP
 
 export default defineConfig({

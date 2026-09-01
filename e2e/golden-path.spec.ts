@@ -1,9 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
 
-function getInstallerVersion(): string {
-  return process.env.INSIGHTFORGE_INSTALLER_VERSION || '0.1.0-local';
-}
-
 async function waitForApp(page: Page) {
   await page.waitForSelector('[data-el="workspace"]', { timeout: 60_000 });
 }
@@ -87,7 +83,7 @@ test.describe('InsightForge Windows E2E', () => {
     // 创建、更新、跳转流程占位
   });
 
-  test('install → upgrade → background process exit', async ({ page }) => {
+  test('install → upgrade → background process exit', async () => {
     // 本测试在签名安装包上升级验证；需 Windows 环境 + 签名证书
     test.skip(!!process.env.INSIGHTFORGE_SKIP_INSTALL, 'Skip install/upgrade in non-Windows');
   });
