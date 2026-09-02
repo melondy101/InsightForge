@@ -61,7 +61,8 @@ Rust application core
 只注册业务命令，不放通用能力：
 
 ```
-sources.add / list / pause / remove / sync
+sources.add / list / pause / remove / sync / reconcile / rebuild_index / set_sync_interval
+sources_await_index_committed   # 阻塞等待索引提交，返回 IndexStatus（C14）
 search.query / open_context
 drafts.open / save / resolve_conflict
 coach.start / respond / resume / mark_helpful
@@ -95,7 +96,41 @@ Tauri 2 的 permissions / scopes / capabilities 负责命令与窗口绑定；�
 - BYOK 存 OS 凭据库（Tauri Stronghold 是加密 vault，不等同 OS 凭据库，不混用）。
 - `ai_call_audit` 记录模型、时间、发送片段数量/ID、状态；不存敏感全文。
 
-## 8. 数据骨架
+## 8. 索引-搜索时序契约
+
+### 背景：Tauri 事件投递不可靠
+
+Tauri 2 `handle.emit("sources://progress", ...)` 在开发模式 WebView2 通道中存在事件丢失窗口。Backfill 完成时的 `BackfillCompleted` 事件**无法可靠到达前端 listen**，导致前端仅依赖事件驱动的进度 UI 会出现状态不同步。
+
+### Condvar 解决方案
+
+引入 `JobDone` 信号（`Arc<Mutex<bool>> + Condvar`）：
+
+- backfill 完成后，executor 线程内先 `running.remove(job_id)`，再 `mark_done()` → `notify_all()`
+- `await_index_committed()` 若发现 source 仍在 `running` map，则 `Condvar::wait_while(|d| !*d)` 阻塞
+- **零 sleep / 零 poll**：唤醒由 Condvar 精确触发，无时间猜测
+
+### 公共命令
+
+`Tauri command` `sources_await_index_committed(sourceId: String) -> IndexStatus`
+
+```
+阶段 0: 验证 source 存在（返回 SourceNotFound 若已删除）
+阶段 1: 若在 running map，阻塞等待 Condvar 信号
+阶段 2: 从 DB 读 file_count + fragment_count
+返回: IndexStatus { source_id, file_count, fragment_count, searchable }
+```
+
+**契约保证**：当 `searchable = true` 时，FTS5 倒排索引已在 writer 线程 commit；`SearchService::query(source_id, …)` 必能命中已索引片段。
+
+### 错误处理要点
+
+- `spawn_backfill` 错误路径：先 `running.remove()` + 回滚，后 `mark_done()`，防止 `await_index_committed` 在清理前看到信号
+- Condvar poison 处理：`lock().unwrap_or_else(|e| e.into_inner())` 保留原始 panic 上下文，允许等待继续
+- `COUNT(*)` 在 SQLite 中永远 `>= 0`，`u64::try_from` 使用 `expect` 而非 `unwrap_or(0)`
+
+
+## 9. 数据骨架
 
 | 表 | 用途 |
 | --- | --- |
@@ -112,7 +147,7 @@ Tauri 2 的 permissions / scopes / capabilities 负责命令与窗口绑定；�
 
 首次运行建立全新 schema，**不做旧数据迁移**。FTS 表、扫描游标、缓存为派生数据；引用快照、思考卡、求助摘要、保存基线不是缓存，不随「重建索引」删除。
 
-## 9. 导出管线
+## 10. 导出管线
 
 - 位于 React/TypeScript 一侧：`remark-parse → remark-gfm → remark-rehype → rehype-stringify`，输出 HTML 必须加 sanitize。不塞编辑器、不进 Rust。
 - 两个目标：
@@ -120,7 +155,7 @@ Tauri 2 的 permissions / scopes / capabilities 负责命令与窗口绑定；�
   - `wechat-clipboard-html`：同一 Markdown AST，标签/属性白名单 + 内联样式（主题 CSS 计算内联，借鉴 doocs/md + Juice 模式），双写 `text/html` 与 `text/plain` 剪贴板。
 - 首版一个固定主题 + 一个强调色；Markdown 内嵌 HTML 默认禁用；图片仅允许远程 `https` URL，不可访问时阻断导出并明确提示。
 
-## 10. 打包、更新与测试
+## 11. 打包、更新与测试
 
 - Windows 首发：签名 NSIS 或 MSI + 系统 WebView2 bootstrapper；updater 走静态 JSON / GitHub Releases（签名强制），不自建业务服务器。
 - 测试三层：
@@ -129,11 +164,11 @@ Tauri 2 的 permissions / scopes / capabilities 负责命令与窗口绑定；�
   3. Windows 桌面 E2E：目录选择、索引进度、证据卡、编辑保存、外部冲突、AI consent（WebDriver；纯浏览器 renderer 模式不能代替真实文件与安装测试）。
 - CI（macOS/Linux 未支持期间）：至少编译 Rust core 并跑平台无关测试。
 
-## 11. 平台支持状态
+## 12. 平台支持状态
 
 - **Windows 首发**；macOS / Linux 未承诺。正式宣称前必须在真实 WKWebView / WebKitGTK 上通过编辑器输入法、selection、clipboard、drag/drop 与 E2E —— 系统 WebView 差异是 Tauri 相对 Electron 最重要的长期代价。
 
-## 12. 已知取舍
+## 13. 已知取舍
 
 - 用 Rust 换取可靠的本地核心与更窄的安全边界（接受 Rust 学习与编译成本）。
 - 用系统 WebView 换取更轻的分发（接受跨 OS 编辑器兼容测试义务）。

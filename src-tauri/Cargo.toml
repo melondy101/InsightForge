@@ -1,24 +1,18 @@
 [package]
 name = "insightforge-desktop"
-version = "0.2.0"
-description = "InsightForge / 智智 — 把碎片盘活成文章的桌面写作客户端"
-authors = ["InsightForge"]
-edition = "2021"
-rust-version = "1.77.2"
-
-[lib]
-name = "insightforge_desktop_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+version.workspace = true
+edition.workspace = true
+description = "InsightForge 桌面壳（Tauri 2）：窗口与启动装配，业务能力都在 insightforge-core"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
-
-[dependencies]
-tauri = { version = "2", features = [] }
-tauri-plugin-opener = "2"
-serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-[features]
-# 由 `tauri dev` 启用，允许自定义协议以外的调试能力。
-custom-protocol = ["tauri/custom-protocol"]
+[dependencies]
+insightforge-core = { path = "../crates/core" }
+tauri = { version = "2", features = [] }
+tauri-plugin-clipboard = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-updater = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

@@ -4,9 +4,13 @@
 
 **Blocked by:** 03 — 中文关键词检索与证据卡；04 — 文件变更收敛与索引维护；06 — 草稿打开、原子保存与冲突三选一
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] 证据卡可固定在证据架上，并可从卡片跳转到来源文件上下文
-- [ ] 引用写入 `draft_reference`：草稿位置、片段 ID、不可变引用快照、采用状态
-- [ ] 来源文件删除后，快照保留并标记「来源不可用」，草稿正文不受影响
-- [ ] 重建索引后引用快照依然存在（非派生数据的验收）
+- [x] 证据卡可固定在证据架上，并可从卡片跳转到来源文件上下文
+- [x] 引用写入 `draft_reference`：草稿位置、片段 ID、不可变引用快照、采用状态
+- [x] 来源文件删除后，快照保留并标记「来源不可用」，草稿正文不受影响
+- [x] 重建索引后引用快照依然存在（非派生数据的验收）
+
+> 2026-09-01 C-03-07 票验证：原生 Tauri GUI Golden Path 通过 WebView2 CDP 驱动完整闭环——来源添加/索引 → 草稿创建 → 搜索 → 固定到草稿 → 引用视图显示真实数据（来源/文件/行号/snippet/采用按钮）→ 删除来源 → 快照保留。P1-1 修复了 references 排序缺陷（now_iso 缺失 %S 导致跨秒字典序反转，改为 %Y-%m-%dT%H:%M:%S.%6fZ + rowid DESC 兜底，确定性时间注入测试 20/20 循环全绿）。
+>
+> 2026-09-01 C-13-Fix 闭环：预存缺口已修复。`src-tauri/src/lib.rs::sources_remove` 现在在调用 `Sources::remove` 前先调用 `references_mark_source_deleted`，删除来源后所有引用快照保留且 `source_deleted=1` 被持久化。`SourcesView` 同时移除 stale `appState.sources` fallback，删除来源后 UI 立即反映（无需 reload）。CDP 渲染验证待真实桌面环境复验。

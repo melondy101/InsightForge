@@ -1,71 +1,25 @@
-import i18n from "i18next";
-import { initReactI18next } from "react-i18next";
-import enUS from "./locales/en-US.json";
-import zhCN from "./locales/zh-CN.json";
-import { localeCodes, normalizeLocale, type LocaleCode } from "@/lib/i18n/locale";
-import {
-  LOCALE_STORAGE_KEY,
-  detectSystemLocale,
-  getLocalePreference,
-  persistLocalePreference,
-  resolveLocalePreference,
-  type LocalePreference,
-} from "@/lib/i18n/preference";
+import i18next from 'i18next';
+import { initReactI18next } from 'react-i18next';
 
-export type { LocaleCode, LocalePreference };
-export {
-  LOCALE_STORAGE_KEY,
-  normalizeLocale,
-  localeCodes,
-  detectSystemLocale,
-  getLocalePreference,
-  resolveLocalePreference,
-};
+import enUS from './locales/en-US.json';
+import zhCN from './locales/zh-CN.json';
 
-const resources = {
-  "en-US": { translation: enUS },
-  "zh-CN": { translation: zhCN },
+// 用户可见文案一律走 i18n（CONTEXT.md §七）：zh-CN 默认，en-US 备选。
+export const localeResources = {
+  'zh-CN': { translation: zhCN },
+  'en-US': { translation: enUS },
 } as const;
 
-// Fixed default for SSR — user preference is applied client-side after mount.
-void i18n.use(initReactI18next).init({
-  resources,
-  lng: "en-US",
-  fallbackLng: "en-US",
-  supportedLngs: [...localeCodes],
-  interpolation: { escapeValue: false },
+export const DEFAULT_LOCALE = 'zh-CN';
+
+void i18next.use(initReactI18next).init({
+  resources: localeResources,
+  lng: DEFAULT_LOCALE,
+  fallbackLng: DEFAULT_LOCALE,
+  interpolation: {
+    // React 已对插值结果做转义，i18next 无需重复处理。
+    escapeValue: false,
+  },
 });
 
-export function syncDocumentLanguage(language: string) {
-  const locale = normalizeLocale(language) ?? "en-US";
-  if (typeof document !== "undefined") {
-    document.documentElement.lang = locale;
-  }
-}
-
-export default i18n;
-
-export const supportedLocales = [
-  { code: "en-US" as const, label: "English", nativeLabel: "English" },
-  { code: "zh-CN" as const, label: "Chinese", nativeLabel: "中文" },
-];
-
-export const changeLocale = async (preference: LocalePreference) => {
-  persistLocalePreference(preference);
-  await i18n.changeLanguage(resolveLocalePreference(preference));
-  syncDocumentLanguage(i18n.language);
-  window.dispatchEvent(
-    new CustomEvent("zhizhi-locale-preference-changed", { detail: preference }),
-  );
-};
-
-export function getResolvedLocale(): LocaleCode {
-  return normalizeLocale(i18n.resolvedLanguage || i18n.language) ?? "en-US";
-}
-
-/** Apply stored preference after hydration (call once from I18nProvider). */
-export async function applyStoredLocalePreference(): Promise<void> {
-  const preference = getLocalePreference();
-  await i18n.changeLanguage(resolveLocalePreference(preference));
-  syncDocumentLanguage(i18n.language);
-}
+export { i18next as i18n };

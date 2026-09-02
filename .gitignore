@@ -255,6 +255,12 @@ dist
 # CodeGraph 本地代码索引
 /.codegraph/
 
+# Rust workspace 构建产物（根 Cargo workspace）
+/target/
+
+# Tauri 生成物
+src-tauri/gen/schemas/
+
 # Brainstorming 可视化伴侣会话
 /.superpowers/
 
@@ -267,6 +273,12 @@ dist
 /.scratch/desktop-rewrite/verification/gp-*.png
 /.scratch/desktop-rewrite/verification/screenshots/
 /e2e-report/
+/.scratch/c14-repro-evidence/
+/.scratch/desktop-rewrite/golden-path/native-gui-*/
 
 # WSL/Windows 路径转换异常时生成的本地 worktree 镜像目录。
 /D/
+/D/
+
+# C14 golden-path fixture temp files (not committed, keeps worktree clean).
+/.scratch/golden-path/c14-index-search-contract/fixtures-*/

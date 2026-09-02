@@ -1,0 +1,40 @@
+[
+  { "action": "log", "note": "Golden Path ticket 05 开始：三栏/拖拽/35% 约束/长中文输入/IME/提取冒烟/来源管理回归" },
+  { "action": "waitFor", "expr": "typeof window.__ifEditor === 'object' && window.__ifEditor !== null", "timeoutMs": 20000, "note": "EditorAdapter 已挂载（dev 调试钩子）" },
+  { "action": "eval", "expr": "window.__ifEditor.getValue()", "expect": "", "note": "初始文档为空" },
+  { "action": "screenshot", "file": "05-gp-01-three-pane.png", "note": "三栏初始布局：左（证据架/检索占位）中（编辑器）右（预留）" },
+  { "action": "eval", "expr": "(() => { const c = document.querySelector('[data-el=\"workspace-pane-center\"]').getBoundingClientRect().width; const t = document.querySelector('[data-el=\"workspace-panes\"]').getBoundingClientRect().width; return Math.round(c / t * 1000) / 1000; })()", "note": "初始中栏占比（约 0.6）" },
+
+  { "action": "click", "selector": "[data-el=\"nav-sources\"]" },
+  { "action": "waitFor", "expr": "Boolean(document.querySelector('[data-el=\"sources-list\"]') || document.querySelector('[data-el=\"pane-sources\"]'))", "timeoutMs": 15000, "note": "来源管理视图渲染（02 回归前置）" },
+  { "action": "screenshot", "file": "05-gp-02-sources-view.png", "note": "02 来源管理视图仍可用" },
+  { "action": "click", "selector": "[data-el=\"nav-workspace\"]" },
+  { "action": "waitFor", "expr": "Boolean(document.querySelector('[data-el=\"editor-host\"] .cm-editor'))", "timeoutMs": 15000, "note": "返回工作台且 CodeMirror 已挂载" },
+  { "action": "eval", "expr": "window.__ifEditor.getValue()", "expect": "", "note": "视图往返后编辑器为全新空白（草稿持久化属 06 号票）" },
+
+  { "action": "drag", "selector": "[data-el=\"divider-left\"]", "dx": 700, "note": "向右大幅过拖左分隔条，试图把中栏压到 35% 以下" },
+  { "action": "eval", "expr": "(() => { const c = document.querySelector('[data-el=\"workspace-pane-center\"]').getBoundingClientRect().width; const t = document.querySelector('[data-el=\"workspace-panes\"]').getBoundingClientRect().width; return Math.round(c / t * 1000) / 1000; })()", "note": "过拖后中栏占比，应 ≥ 0.35（被约束停住）" },
+  { "action": "screenshot", "file": "05-gp-03-drag-left-clamped.png", "note": "左分隔条拖拽触线：中栏保持 35%" },
+  { "action": "drag", "selector": "[data-el=\"divider-right\"]", "dx": 700, "note": "向右拖右分隔条（中栏变宽），右栏压到下限" },
+  { "action": "eval", "expr": "(() => { const r = document.querySelector('[data-el=\"workspace-pane-right\"]').getBoundingClientRect().width; return Math.round(r); })()", "note": "右栏宽度应 ≥ 48px（可抓取下限）" },
+  { "action": "drag", "selector": "[data-el=\"divider-left\"]", "dx": -500, "note": "拖回左分隔条恢复空间" },
+
+  { "action": "click", "selector": "[data-el=\"editor-host\"]", "note": "聚焦编辑器" },
+  { "action": "composition", "preEdit": "zhong wen shu ru ce shi", "commit": "中文输入测试", "note": "IME 组合窗模拟：拼音 preEdit → 候选确认 → 上屏" },
+  { "action": "eval", "expr": "window.__ifEditor.getValue().includes('中文输入测试')", "note": "组合上屏内容进入文档" },
+  { "action": "insertText", "text": "在真正的写作场景里，创作者会一口气敲下几百个字，中间夹着各种标点（逗号、句号、顿号、书名号《织知》）、数字（2026 年 8 月 30 日，编号 0517）、英文名词（CodeMirror 6 与 WebView2）、全角破折号——以及省略号……这些内容必须一个字不丢、一个字不错位。" },
+  { "action": "insertText", "text": "长文压测的第二段：知识库只读，草稿即成文，文件是唯一真相。编辑器不能悄悄改写用户的 Markdown，也不能在输入法组合过程中丢字。这里特意连续铺陈大量常用汉字，看看光标位置是否始终正确、已输入内容是否稳定不变。写到这里，光标应该在整段文字的最末尾，而不是跳回中间某处。" },
+  { "action": "composition", "preEdit": "jie xia lai yan zheng", "commit": "接下来验证" },
+  { "action": "insertText", "text": "第三段继续压测：混合「引号」与‘单引号’，加上英文 mixed words 与数字 1234567890，再加 emoji 🎉🚀 与代理对验证。中文输入法在 Windows 上通过组合窗工作：拼音串先变成带下划线的临时文本，候选确认后整句上屏。编辑器必须优雅处理这一过程，不允许出现重影、重复或错位。" },
+  { "action": "insertText", "text": "第四段收尾：一段一景，字字落实。写作者关心的不是炫技，而是可靠的日常——打开就写，写完就存，存的就是文件本身。今天验证的结论会记录在案：如果这段文字完整出现在编辑器与读取结果中，没有丢字、没有错位、没有重复，那么本项验证即为通过，时间为 2026-08-30。" },
+  { "action": "expectValueEqualsInserted", "note": "逐字符相等：无丢字 / 无错位 / 无重复" },
+  { "action": "eval", "expr": "(() => { const len = window.__ifEditor.getValue().length; const sel = window.__ifEditor.getSelection(); return { len, cursorAtEnd: Math.max(sel.anchor, sel.head) === len }; })()", "note": "光标应停在文末" },
+  { "action": "screenshot", "file": "05-gp-04-long-chinese-typed.png", "note": "长中文输入完成（≥500 字）" },
+
+  { "action": "insertText", "text": "\n\n# 第一章 · 验证结论\n\n正文在第一章。" },
+  { "action": "eval", "expr": "(() => { const c = window.__ifEditor.extractContext(); return { current: c.current && c.current.text, outline: c.outline.map((e) => ({ level: e.level, text: e.text, path: e.path })) }; })()", "note": "提取 API 冒烟：光标所在段 + 标题大纲" },
+  { "action": "eval", "expr": "window.__ifEditor.getValue().includes('第一章 · 验证结论')", "note": "标题行插入成功" },
+  { "action": "screenshot", "file": "05-gp-05-extract-heading.png", "note": "状态条显示段落序号与标题路径" },
+  { "action": "eval", "expr": "(() => { const len = window.__ifEditor.getValue().length; const sel = window.__ifEditor.getSelection(); return { len, cursorAtEnd: Math.max(sel.anchor, sel.head) === len }; })()", "note": "光标仍在文末" },
+  { "action": "log", "note": "Golden Path ticket 05 结束" }
+]

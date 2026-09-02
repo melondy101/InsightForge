@@ -1,10 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "InsightForge 桌面端默认权限：主窗口 + 用系统默认程序打开外部链接。",
+  "description": "主窗口默认能力：Tauri 核心事件 + 目录选择对话框；无任何通用文件系统/网络/SQL 权限（领域规则在 Rust 业务服务内执行）。",
   "windows": ["main"],
-  "permissions": [
-    "core:default",
-    "opener:default"
-  ]
+  "permissions": ["core:default", "dialog:default"]
 }

@@ -11,3 +11,5 @@
 - [ ] 打开时记录保存基线（file identity、内容 hash、mtime、size）；每次保存前重读比对
 - [ ] 外部修改后保存返回结构化 `Conflict`，呈现 diff 三选一：保留本地 / 采用外部 / 另存为
 - [ ] 断电、进程崩溃、锁占用、杀毒软件干扰的恢复用例通过（M0 第 3 项验证折叠于此）
+
+> 2026-09-01 C-13-Fix 闭环：`crates/core/src/drafts.rs::open()` 现通过 `find_draft(filename)` 复用同路径草稿的 id/created_at，重打开不再触发 `UNIQUE(draft.path)` 约束。新增 Rust 测试 `open_existing_draft_reuses_id_and_created_at` 覆盖 create → open → open 路径；`open_creates_new_draft_when_no_prior_record` 覆盖无前置记录的 open 路径。P1 缺陷解除。

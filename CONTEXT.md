@@ -42,6 +42,8 @@
 | **凭据** | `Secret` | BYOK API Key。 | 存 OS 凭据库（Windows Credential Manager；未来 Keychain / Secret Service）。 |
 | **审计** | `AiCallAudit` | 模型、时间、发送片段数量/ID、状态。 | 不重复保存敏感全文。 |
 | **派生数据** | `Derived` | FTS 表、扫描游标、缓存。 | 可全量重建；**非派生**（不可随重建删除）：引用快照、思考卡、求助摘要、保存基线。 |
+| **索引状态** | `IndexStatus` | 等待索引提交完成时的返回结构：来源 ID、已索引文件数、已建立片段数、是否可搜索。 | `searchable = fragment_count > 0` 时为 `true`，`search_query` 必能命中。 |
+| **完成信号** | `JobDone` | `Arc<Mutex<bool>> + Condvar`，backfill 完成后 notify_all 等待者。 | 零 sleep / 零 poll；解决 Tauri dev 模式下 `BackfillCompleted` 事件投递丢失问题。 |
 
 ---
 
@@ -50,9 +52,10 @@
 | 术语（中） | 命令 / 符号 | 含义 |
 | --- | --- | --- |
 | **添加/暂停/移除/同步来源** | `sources.add / pause / remove / sync` | 授权目录并命名；移除只删索引记录，不动源文件。 |
-| **补扫** | backfill（indexer 内部） | 启动补扫、手动同步、5/15/30 分钟间隔校验负责最终一致；watcher 事件只负责尽快触发。 |
+| **等待索引提交** | `sources_await_index_committed` | 阻塞等待 backfill 完成 + FTS commit，返回 `IndexStatus`；前端据此 gating 搜索按钮。 |
 | **检索** | `search.query` | FTS5 bm25 排序 + snippet 上下文；中文 trigram，两字符回退受限线性扫描。 |
 | **打开上下文** | `search.open_context` | 从证据卡跳到来源文件上下文。 |
+| **补扫** | backfill（indexer 内部） | 启动补扫、手动同步、5/15/30 分钟间隔校验负责最终一致；watcher 事件只负责尽快触发。 |
 | **打开/保存草稿** | `drafts.open / save` | 原子保存：临时文件 → flush → sync → 平台替换（Windows `ReplaceFileW`，Unix rename）。 |
 | **解决冲突** | `drafts.resolve_conflict` | diff 三选一，绝不静默覆盖。 |
 | **引用证据** | cite（写入 `draft_reference`） | 生成不可变引用快照。 |
