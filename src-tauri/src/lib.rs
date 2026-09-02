@@ -462,16 +462,37 @@ fn coach_archive(state: State<'_, CoachState>, session_id: String) -> Result<(),
     Ok(state.0.archive(&session_id)?)
 }
 
+/// Updater 签名公钥解析（纯函数，注入 env 值与是否 release，便于确定性测试）。
+///
+/// - 显式提供公钥时一律优先使用（不区分 debug/release）。
+/// - 未提供时：release 构建返回 `None`（调用方据此 fail-closed panic）；
+///   debug 构建回退到内置测试公钥，保证本地开发可运行。
+fn resolve_updater_pubkey(
+    env_value: Option<String>,
+    is_release: bool,
+) -> Option<String> {
+    match env_value {
+        Some(pk) if !pk.is_empty() => Some(pk),
+        _ => {
+            if is_release {
+                None
+            } else {
+                Some("dW50cnVzdGVkIGJ5IHNpbW9sZiBvciB0ZXN0".to_string())
+            }
+        }
+    }
+}
+
 /// Updater 签名公钥解析。
 /// - release 构建必须由环境变量 INSIGHTFORGE_UPDATER_PUBKEY 提供，缺失即 panic（fail-closed）。
 /// - debug 构建回退到内置测试公钥，保证本地开发可运行。
 fn updater_pubkey() -> String {
-    match std::env::var("INSIGHTFORGE_UPDATER_PUBKEY") {
-        Ok(pk) => pk,
-        Err(_) if cfg!(not(debug_assertions)) => {
-            panic!("INSIGHTFORGE_UPDATER_PUBKEY must be set in release builds")
-        }
-        Err(_) => "dW50cnVzdGVkIGJ5IHNpbW9sZiBvciB0ZXN0".to_string(),
+    match resolve_updater_pubkey(
+        std::env::var("INSIGHTFORGE_UPDATER_PUBKEY").ok(),
+        cfg!(not(debug_assertions)),
+    ) {
+        Some(pk) => pk,
+        None => panic!("INSIGHTFORGE_UPDATER_PUBKEY must be set in release builds"),
     }
 }
 
@@ -612,23 +633,36 @@ pub fn run() {
 
 #[cfg(test)]
 mod updater_tests {
-    use super::updater_pubkey;
+    use super::resolve_updater_pubkey;
 
     const TEST_FALLBACK: &str = "dW50cnVzdGVkIGJ5IHNpbW9sZiBvciB0ZXN0";
 
-    /// debug 构建缺少公钥环境变量时，返回内置测试回退公钥且不 panic。
+    /// debug 构建缺少公钥时，返回内置测试回退公钥（不 panic）。
     #[test]
     fn debug_missing_pubkey_uses_test_fallback() {
-        std::env::remove_var("INSIGHTFORGE_UPDATER_PUBKEY");
-        assert_eq!(updater_pubkey(), TEST_FALLBACK);
+        let pk = resolve_updater_pubkey(None, false);
+        assert_eq!(pk.as_deref(), Some(TEST_FALLBACK));
     }
 
-    /// 已设置公钥环境变量时，优先使用环境变量值。
+    /// release 构建缺少公钥时，返回 None（调用方据此 fail-closed panic，不回退）。
     #[test]
-    fn pubkey_env_var_wins_over_fallback() {
-        std::env::set_var("INSIGHTFORGE_UPDATER_PUBKEY", "env-pubkey");
-        assert_eq!(updater_pubkey(), "env-pubkey");
-        std::env::remove_var("INSIGHTFORGE_UPDATER_PUBKEY");
+    fn release_missing_pubkey_is_none_not_fallback() {
+        let pk = resolve_updater_pubkey(None, true);
+        assert!(pk.is_none(), "release build must not fall back to a test key");
+    }
+
+    /// 已设置公钥时，无论 debug/release 都优先使用环境变量值。
+    #[test]
+    fn pubkey_env_value_wins_over_fallback() {
+        assert_eq!(resolve_updater_pubkey(Some("env-pubkey".into()), false), Some("env-pubkey".into()));
+        assert_eq!(resolve_updater_pubkey(Some("env-pubkey".into()), true), Some("env-pubkey".into()));
+    }
+
+    /// 空白公钥视为未提供，走 debug 回退 / release fail-closed。
+    #[test]
+    fn blank_pubkey_treated_as_missing() {
+        assert_eq!(resolve_updater_pubkey(Some("".into()), false), Some(TEST_FALLBACK.into()));
+        assert!(resolve_updater_pubkey(Some("".into()), true).is_none());
     }
 
     // ---- tauri.conf.json 静态校验（防止 schema 回退）----
