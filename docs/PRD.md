@@ -1,8 +1,8 @@
 # 织知 InsightForge — 产品需求文档（桌面版）
 
-> 版本：1.0.0-draft
-> 最后更新：2026-08-30
-> 状态：方向定稿（细节随 M0 架构曳光弹校准）
+> 版本：0.1.0
+> 最后更新：2026-09-02
+> 状态：桌面实现已合入；公开发布验证待签名安装、updater 与安装升级 E2E 闭环
 > 依据：[docs/research/2026-08-29-desktop-architecture-options.md](./research/2026-08-29-desktop-architecture-options.md) · [docs/research/2026-08-30-platform-export-options.md](./research/2026-08-30-platform-export-options.md)
 
 ---

@@ -30,6 +30,6 @@ export default defineConfig({
     },
   ],
   // 注意：Tauri 安装包不是 HTTP server，webServer 配置已移除
-  // 真实自动化需通过 @tauri-apps/playwright adapter 或 WebView2 CDP 连接
+  // 真实自动化需通过 WebView2 CDP 连接
   // 见 e2e/README.md
 });

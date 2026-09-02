@@ -26,7 +26,7 @@
 | 数据 | SQLite + FTS5 | WAL + 单写队列；≥ 3.51.3（含 2026 WAL-reset 修复） |
 | 密钥 | `keyring` → Windows Credential Manager | 未来 macOS Keychain / Linux Secret Service |
 | 导出 | remark → rehype 管线（TS 侧） | `remark-parse → remark-gfm → remark-rehype → rehype-stringify` + sanitize |
-| 打包/更新 | 签名 NSIS / MSI + Tauri updater | 签名校验强制、不可关闭 |
+| 打包/更新 | NSIS / MSI + Tauri updater | 公开发布时签名校验强制、不可关闭 |
 
 ## 3. 系统形状
 
@@ -157,7 +157,8 @@ Tauri 2 `handle.emit("sources://progress", ...)` 在开发模式 WebView2 通道
 
 ## 11. 打包、更新与测试
 
-- Windows 首发：签名 NSIS 或 MSI + 系统 WebView2 bootstrapper；updater 走静态 JSON / GitHub Releases（签名强制），不自建业务服务器。
+- 公开发布：签名 NSIS 或 MSI + 系统 WebView2 bootstrapper；updater 走静态 JSON / GitHub Releases（签名强制），不自建业务服务器。
+- 当前个人自用基线：updater 配置和 fail-closed 注入已验证；没有签名安装包、公开 HTTPS endpoint 或安装升级 E2E，因此不能作为公开发布验证依据。
 - 测试三层：
   1. Rust 单元/属性测试：分块、路径边界、ignore、hash 迁移、排名、三轮状态机、AI 出站裁剪。
   2. 临时目录 + SQLite 集成测试：新增/修改/删除/重命名、watch 漏事件后的 reconciliation、10k 文件基准、草稿冲突与失败恢复。

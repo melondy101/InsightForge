@@ -1,7 +1,7 @@
 # 织知 InsightForge — 桌面版路线图
 
 > 版本：1.0（桌面版重写稿）
-> 最后更新：2026-08-30
+> 最后更新：2026-09-02
 > 依据：[docs/research/2026-08-29-desktop-architecture-options.md](./research/2026-08-29-desktop-architecture-options.md) · [docs/research/2026-08-30-platform-export-options.md](./research/2026-08-30-platform-export-options.md)
 
 ---
@@ -11,6 +11,11 @@
 - 旧 Web 版止于 **0.3.9**，不再演进；桌面版从 **0.1.0** 重新计数，**不迁移旧数据**。
 - 技术底座已定：**Tauri 2 + React/TS/Vite + Rust 核心 + SQLite/FTS5**，理由与对比见 ARCHITECTURE.md 与调研存档。
 - 方法论不变：TDD + 垂直切片（曳光弹），每轮「一个测试 → 最小实现 → 变绿」，任何时候不超过一个失败测试（见 AGENTS.md）。
+
+### 实施状态（2026-09-02）
+
+- M1–M3 的实现以及双导出能力已合入 `main`，索引-搜索通过 `sources_await_index_committed` 建立可观察的提交时序契约。
+- Windows 个人自用可继续验证；M4 的公开发布门槛仍未关闭：签名安装包、HTTPS updater 与安装→升级 E2E 均待真实发布条件。
 
 ---
 

@@ -1,41 +1,22 @@
 # InsightForge Windows E2E
 
-## 环境要求
+`e2e/golden-path.spec.ts` 是 Windows 桌面验收的待完善规格，不能替代真实 Tauri/WebView2 验证，也不应把安装包当作 HTTP server。
 
-- Windows 10/11
-- WebView2 Runtime（系统已自带或单独安装）
-- 签名安装包（`InsightForge-Setup-<version>.exe`）
-- Playwright 浏览器：`bun run test:e2e:install`
+## 当前基线
 
-## 自动化路径
+- 已在真实 Tauri dev 实例通过 WebView2 CDP 验证核心来源、草稿、搜索和引用调用链。
+- Playwright 规格仍含占位/跳过项；在这些断言改为真实交互前，不得宣称 Windows 安装包 E2E 通过。
+- `@tauri-apps/playwright` 不在依赖树中；不要添加它，也不要在 `playwright.config.ts` 配置 `webServer` 来启动 `.exe`。
 
-Tauri 安装包不是 HTTP server，Playwright 的 `webServer` 配置不适用。
+## 真实验收前置条件
 
-### 方案 A：WebView2 CDP（推荐）
+1. Windows 10/11 与 WebView2 Runtime。
+2. 真实签名安装包、可访问的 HTTPS updater endpoint，以及安全注入的 updater 私钥（仅对公开发布需要）。
+3. 启动时明确启用 WebView2 CDP 端口，并通过 `INSIGHTFORGE_CDP_ENDPOINT` 连接。
 
-1. 启动 InsightForge 安装包
-2. 通过 WebView2 CDP 端口连接（需在启动时启用）
-3. 使用 Playwright `chromium` 类型驱动
-
-```bash
-# 设置 CDP 端点（需 WebView2 启用开发者功能）
-export INSIGHTFORGE_CDP_ENDPOINT="http://127.0.0.1:9222"
+```powershell
+$env:INSIGHTFORGE_CDP_ENDPOINT = 'http://127.0.0.1:9222'
 bun run test:e2e
 ```
 
-### 方案 B：@tauri-apps/playwright（待验证）
-
-`@tauri-apps/playwright` 已安装，但 Tauri 2 的 WebView2 自动化 adapter
-需确认其是否支持直接连接已安装的桌面应用。
-
-## 当前状态
-
-- E2E 测试框架已搭建（Playwright + 选择器）
-- 选择器未在真实 WebView2 渲染中验证
-- 完整 7 路径 Golden Path 待 Windows 环境执行
-
-## BLOCKED 条件
-
-- 无 Windows 签名安装包
-- 无 WebView2 CDP 自动化连接验证
-- 无签名证书与发布基础设施
+个人自用不要求购买代码签名证书；但这不构成公开发布签名或安装升级验证通过的证据。

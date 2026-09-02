@@ -41,7 +41,7 @@ bun run gate
 - 提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/)：
   - `feat: add search page`
   - `fix: guard hydration mismatch on library detail`
-  - `docs: update PRD with MCP tools`
+  - `docs: document index-search contract`
 
 ---
 

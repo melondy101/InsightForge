@@ -2,7 +2,7 @@
 
 > 本地优先的桌面反代写写作工作台 —— AI 只递问题与证据，血肉由你亲手补。
 
-> ⚠️ **桌面版重写进行中**（2026-08-30 定稿）：项目正转向 Tauri 2 + Rust 本地核心的纯桌面应用。需求与节奏见 [docs/PRD.md](./docs/PRD.md)、[docs/ROADMAP.md](./docs/ROADMAP.md)、[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)；实施票据见 [.scratch/desktop-rewrite/spec.md](./.scratch/desktop-rewrite/spec.md)。旧 Web 版已冻结，不再演进。
+> 桌面版重写已合入 `main`，目前处于 Windows 个人自用验证阶段。旧 Web 版已冻结，不再演进；需求、路线图和架构见 [docs/PRD.md](./docs/PRD.md)、[docs/ROADMAP.md](./docs/ROADMAP.md) 与 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
 
 「织知」不替你写，而是做三件市面工具都不做的事：
 
