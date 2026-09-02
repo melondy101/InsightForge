@@ -61,7 +61,8 @@ Rust application core
 只注册业务命令，不放通用能力：
 
 ```
-sources.add / list / pause / remove / sync
+sources.add / list / pause / remove / sync / reconcile / rebuild_index / set_sync_interval
+sources_await_index_committed   # 阻塞等待索引提交，返回 IndexStatus（C14）
 search.query / open_context
 drafts.open / save / resolve_conflict
 coach.start / respond / resume / mark_helpful
@@ -129,7 +130,7 @@ Tauri 2 `handle.emit("sources://progress", ...)` 在开发模式 WebView2 通道
 - `COUNT(*)` 在 SQLite 中永远 `>= 0`，`u64::try_from` 使用 `expect` 而非 `unwrap_or(0)`
 
 
-## 8. 数据骨架
+## 9. 数据骨架
 
 | 表 | 用途 |
 | --- | --- |
@@ -146,7 +147,7 @@ Tauri 2 `handle.emit("sources://progress", ...)` 在开发模式 WebView2 通道
 
 首次运行建立全新 schema，**不做旧数据迁移**。FTS 表、扫描游标、缓存为派生数据；引用快照、思考卡、求助摘要、保存基线不是缓存，不随「重建索引」删除。
 
-## 9. 导出管线
+## 10. 导出管线
 
 - 位于 React/TypeScript 一侧：`remark-parse → remark-gfm → remark-rehype → rehype-stringify`，输出 HTML 必须加 sanitize。不塞编辑器、不进 Rust。
 - 两个目标：
@@ -154,7 +155,7 @@ Tauri 2 `handle.emit("sources://progress", ...)` 在开发模式 WebView2 通道
   - `wechat-clipboard-html`：同一 Markdown AST，标签/属性白名单 + 内联样式（主题 CSS 计算内联，借鉴 doocs/md + Juice 模式），双写 `text/html` 与 `text/plain` 剪贴板。
 - 首版一个固定主题 + 一个强调色；Markdown 内嵌 HTML 默认禁用；图片仅允许远程 `https` URL，不可访问时阻断导出并明确提示。
 
-## 10. 打包、更新与测试
+## 11. 打包、更新与测试
 
 - Windows 首发：签名 NSIS 或 MSI + 系统 WebView2 bootstrapper；updater 走静态 JSON / GitHub Releases（签名强制），不自建业务服务器。
 - 测试三层：
@@ -163,11 +164,11 @@ Tauri 2 `handle.emit("sources://progress", ...)` 在开发模式 WebView2 通道
   3. Windows 桌面 E2E：目录选择、索引进度、证据卡、编辑保存、外部冲突、AI consent（WebDriver；纯浏览器 renderer 模式不能代替真实文件与安装测试）。
 - CI（macOS/Linux 未支持期间）：至少编译 Rust core 并跑平台无关测试。
 
-## 11. 平台支持状态
+## 12. 平台支持状态
 
 - **Windows 首发**；macOS / Linux 未承诺。正式宣称前必须在真实 WKWebView / WebKitGTK 上通过编辑器输入法、selection、clipboard、drag/drop 与 E2E —— 系统 WebView 差异是 Tauri 相对 Electron 最重要的长期代价。
 
-## 12. 已知取舍
+## 13. 已知取舍
 
 - 用 Rust 换取可靠的本地核心与更窄的安全边界（接受 Rust 学习与编译成本）。
 - 用系统 WebView 换取更轻的分发（接受跨 OS 编辑器兼容测试义务）。

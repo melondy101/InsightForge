@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 服务端 BYOK 代转路由（`/api/skeleton`、`/api/skeleton/expand`、`/api/discover`）
 - 代转路由 IP 限流（20 次/分钟）+ SSRF 防护
 - 数据库迁移脚本（`db:migrate`、`db:generate`、`db:push`）
+- 索引-搜索时序契约：`sources_await_index_committed` 命令确保 FTS 提交后搜索才启用（C14）
 
 ### Changed
 - 升级 Next.js 16 + React 19

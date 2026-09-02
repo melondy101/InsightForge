@@ -36,7 +36,23 @@
 - **反代写定位**：新功能应服务于「AI 只出骨架/提示、血肉由创作者写」。检查/提示类能力（只提示不改写）优先于替写类。
 - **i18n**：用户可见文案一律走 `react-i18next` 的 `t()`，字符串存 `src/i18n/locales/{zh-CN,en-US}.json`，不硬编码。
 
-## 五、发布构建
+## 五、Tauri 命令清单（只注册业务命令）
+
+只注册窄而有类型的业务命令，不放通用能力。前端薄投影在 `src/sources/api.ts` 等文件。
+
+```
+sources.add / list / pause / remove / sync / reconcile / rebuild_index / set_sync_interval
+search.query / open_context
+sources_await_index_committed   # 阻塞等待索引提交完成，返回 IndexStatus（含 searchable 布尔）
+drafts.open / save / resolve_conflict
+coach.start / respond / resume / mark_helpful
+thoughts.confirm / update
+references.create / list / adopt / mark_source_deleted
+egress.build / audit_log / audit_list
+settings.get / set_ai / set_ai_enabled / set_api_key / clear_api_key / test_connection
+```
+
+## 六、发布构建
 
 - 前端：`bun run build`（Vite 构建到 `src-tauri/dist`）。
 - 桌面版：`bun run tauri dev`（开发模式）；`bun run tauri build`（打包桌面应用）。
