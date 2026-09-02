@@ -277,3 +277,6 @@ src-tauri/gen/schemas/
 
 # WSL/Windows 路径转换异常时生成的本地 worktree 镜像目录。
 /D/
+
+# C14 golden-path fixture temp files (not committed, keeps worktree clean).
+/.scratch/golden-path/c14-index-search-contract/fixtures-*/
