@@ -204,7 +204,7 @@ cd D:/Develop/wt/InsightForge/c14-index-search-contract
 bun run .scratch/golden-path/c14-index-search-contract/cdp-golden-path.mjs
 ```
 
-**预期结果**：20/20 passes，`avgMs < 3000`/run
+**本次独立运行结果**：20/20 passes，平均 189ms/run，0 failures。结果见已提交的 `results.json`；脚本通过 `http://127.0.0.1:9222` 连接真实 WebView2 CDP。
 
 ## 八、未解决风险
 
@@ -214,7 +214,7 @@ bun run .scratch/golden-path/c14-index-search-contract/cdp-golden-path.mjs
 | Tauri 事件通道在 release 模式下也可能丢失 | 中等 | **待验证** — 需在 release 构建中跑 CDP Golden Path |
 | `await_index_committed` 在 source 不存在时返回 `SourceNotFound` 错误 | 低 | 已处理（阶段 0 验证 source 存在） |
 | `remove` 调用在 backfill 未完成时可能竞态 | 低 | 已处理（`remove` 阻塞 `done_signal.wait(None)` 后才清理） |
-| CDP Golden Path 需手动运行（本会话无法同时跑 tauri dev + 驱动） | 操作风险 | 脚本已就位，需主控独立验证 |
+| CDP Golden Path 在 release 构建中的复验 | 中等 | dev 模式下已真实运行 20/20；release 安装包验证留待 15/公开发布阶段 |
 
 ## 九、失败会话
 
@@ -222,9 +222,9 @@ bun run .scratch/golden-path/c14-index-search-contract/cdp-golden-path.mjs
 
 ## 十、下一步
 
-- **主控合并**：`git merge --no-ff ticket/c14-index-search-contract` 到 `integration/desktop-rewrite`
+- **主控合并**：已合入 `integration/desktop-rewrite`，merge commit 为 `75fe139`。
 - **C14 后**：修复 15 的 5 个占位与 1 个 skip
-- **CDP 验证**：主控独立运行 golden path 脚本（需真实 Tauri dev 实例）
+- **CDP 验证**：本次主控已在真实 Tauri dev + WebView2 CDP 环境完成 20/20；保留脚本供复跑。
 
 ## 十一、Reviewer 缺陷修复（C14 Finalizer）
 
@@ -262,17 +262,17 @@ bun run .scratch/golden-path/c14-index-search-contract/cdp-golden-path.mjs
 | 文档 | `docs/ARCHITECTURE.md` | §8 索引-搜索时序契约（Condvar 方案、公共命令、错误处理） |
 | Handoff | `.scratch/desktop-rewrite/handoffs/c14-index-search-contract-handoff.md` | 本文件 |
 | Gitignore | `.gitignore` | 新增 fixtures-* 规则 |
+| CDP 驱动 | `.scratch/golden-path/c14-index-search-contract/cdp-golden-path.mjs` | 已提交，可复跑真实 WebView2 CDP 路径 |
+| CDP 结果 | `.scratch/golden-path/c14-index-search-contract/results.json` | 已提交的 20/20 结果摘要 |
+| CDP 截图 | `.scratch/golden-path/c14-index-search-contract/screenshots/` | 已提交的 4 张关键截图 |
+| 根因摘要 | `.scratch/c14-repro-evidence/cdp-repro-summary.txt` | 已提交的复现阶段证据 |
 
 ### 刻意未提交的文件
 
 | 路径 | 原因 |
 |------|------|
 | `.scratch/golden-path/c14-index-search-contract/fixtures-*/`（40 个 doc.md） | 每次 CDP 运行生成的临时 fixture，`.gitignore` 已排除 |
-| `.scratch/golden-path/c14-index-search-contract/results.json` | 运行结果，可通过脚本重跑 |
-| `.scratch/golden-path/c14-index-search-contract/screenshots/`（4 张） | CDP 截图证据，保持 track 以备审查 |
-| `.scratch/golden-path/c14-index-search-contract/cdp-golden-path.mjs` | 驱动脚本，保持 track 以备复跑 |
 | `crates/core/examples/repro_p0_timing.rs` | 一次性 P0 根因确认脚本，`//! 不入 git`，40 次 spin loop 仅用于复现事件丢失 |
-| `.scratch/c14-repro-evidence/cdp-repro-summary.txt` | 复现阶段产物，非 commit 证据 |
 
 ### crates/core/examples/ 检查结论
 
@@ -287,4 +287,4 @@ bun run .scratch/golden-path/c14-index-search-contract/cdp-golden-path.mjs
 | 项目 | 值 |
 |------|-----|
 | 集成 HEAD（基线） | `d6cc985699222fb1fd6faf964d4a57f8bee4ebb1` |
-| C14 commit（本次） | `ticket/c14-index-search-contract` HEAD（每次 amend 自动推进，以 `git rev-parse HEAD` 为准） |
+| C14 commit（本次） | `b159fd34f8780fea4832f1fd66a778d8db046f6a`（`ticket/c14-index-search-contract` HEAD） |
