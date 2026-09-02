@@ -12,10 +12,13 @@
 - 技术底座已定：**Tauri 2 + React/TS/Vite + Rust 核心 + SQLite/FTS5**，理由与对比见 ARCHITECTURE.md 与调研存档。
 - 方法论不变：TDD + 垂直切片（曳光弹），每轮「一个测试 → 最小实现 → 变绿」，任何时候不超过一个失败测试（见 AGENTS.md）。
 
-### 实施状态（2026-09-02）
+### 实施状态（2026-09-02，2026-09-03 修订）
 
 - M1–M3 的实现以及双导出能力已合入 `main`，索引-搜索通过 `sources_await_index_committed` 建立可观察的提交时序契约。
-- Windows 个人自用可继续验证；M4 的公开发布门槛仍未关闭：签名安装包、HTTPS updater 与安装→升级 E2E 均待真实发布条件。
+- **已知缺口（截至 2026-09-03）**：来源删除后引用快照、无 Key/关闭 AI 降级等核心链路已落地；
+  但「外部编辑冲突三选一」「DB 打开完整性校验」「结构化诊断与事件日志」属于本地可靠性/可观测性缺口，
+  由 `codex/desktop-release-readiness` 分支补齐（见 `docs/release-readiness.md`）。
+- Windows 个人自用可继续验证；M4 的公开发布门槛仍未关闭：签名安装包、HTTPS updater 与安装→升级 E2E 均待真实发布条件（见 `docs/release-readiness.md` §3.3）。
 
 ---
 

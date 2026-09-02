@@ -1,7 +1,7 @@
 # 织知 InsightForge — 架构概览（桌面版）
 
-> 版本：1.0.0-draft
-> 最后更新：2026-08-30
+> 版本：目标 1.0.0（draft）；当前构建版本见 `tauri.conf.json` 的 `0.1.0`
+> 最后更新：2026-08-30（2026-09-02 修订版本说明）
 > 选型对比与理由：[docs/research/2026-08-29-desktop-architecture-options.md](./research/2026-08-29-desktop-architecture-options.md)
 > 导出方案：[docs/research/2026-08-30-platform-export-options.md](./research/2026-08-30-platform-export-options.md)
 
