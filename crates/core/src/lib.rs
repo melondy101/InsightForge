@@ -45,7 +45,9 @@ pub use settings::{
     AiAvailability, AiSampleReply, AiSettings, AiUnavailableReason, Settings, SettingsError,
     TestConnectionReport,
 };
-pub use sources::{EventSink, SourceEvent, SourceStatus, SourceSummary, Sources, SourcesError};
+pub use sources::{
+    EventSink, IndexStatus, SourceEvent, SourceStatus, SourceSummary, Sources, SourcesError,
+};
 pub use store::{
     files_of_source_with_identity, mark_files_missing, rename_file, StoredFileWithIdentity,
 };

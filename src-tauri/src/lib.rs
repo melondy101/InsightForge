@@ -188,6 +188,14 @@ fn sources_set_sync_interval(
     Ok(state.0.set_sync_interval(&id, interval_minutes)?)
 }
 
+#[tauri::command]
+fn sources_await_index_committed(
+    state: State<'_, SourcesState>,
+    source_id: String,
+) -> Result<insightforge_core::IndexStatus, CommandError> {
+    Ok(state.0.await_index_committed(&source_id)?)
+}
+
 // ---- search.*（03 号票：中文关键词检索与证据卡）----
 
 #[tauri::command]
@@ -564,6 +572,7 @@ pub fn run() {
             sources_reconcile,
             sources_rebuild_index,
             sources_set_sync_interval,
+            sources_await_index_committed,
             search_query,
             search_open_context,
             settings_get,

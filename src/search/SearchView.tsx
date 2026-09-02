@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { searchApi, type EvidenceCard, type FragmentContext, type SearchErrorShape, toSearchError } from './api';
 import { referencesApi } from '../references/api';
+import { sourcesApi, type IndexStatus } from '../sources/api';
 import { useAppState } from '../AppStateContext';
 
 function errorText(
@@ -36,7 +37,41 @@ export function SearchView({ sourceId, sourceName }: SearchViewProps) {
   const [pinnedFragmentId, setPinnedFragmentId] = useState<number | null>(null);
   const [pinError, setPinError] = useState<string | null>(null);
 
-  const canSearch = !loading && query.trim().length > 0;
+  /** 索引是否已完成且 FTS 可搜索（时序契约）。 */
+  const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
+  const [indexLoading, setIndexLoading] = useState(false);
+  const [indexError, setIndexError] = useState<string | null>(null);
+
+  /** sourceId 切换时重新 await；不依赖 BackfillCompleted 事件（Tauri dev 模式下事件可能丢失）。 */
+  useEffect(() => {
+    let cancelled = false;
+    setIndexStatus(null);
+    setIndexLoading(true);
+    setIndexError(null);
+    setResults([]);
+    setQuery('');
+    setContext(null);
+
+    sourcesApi
+      .awaitIndexCommitted(sourceId)
+      .then((status) => {
+        if (cancelled) return;
+        setIndexStatus(status);
+        setIndexLoading(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setIndexError(err instanceof Error ? err.message : String(err));
+        setIndexLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceId]);
+
+  const searchReady = indexStatus?.searchable ?? false;
+  const canSearch = !loading && !indexLoading && query.trim().length > 0 && searchReady;
 
   async function handleSearch() {
     if (!canSearch) {
@@ -95,6 +130,12 @@ export function SearchView({ sourceId, sourceName }: SearchViewProps) {
         </p>
       ) : null}
 
+      {indexError ? (
+        <p className="search__error" data-el="search-index-error" role="alert">
+          {indexError}
+        </p>
+      ) : null}
+
       {pinError ? (
         <p className="search__error" data-el="search-pin-error" role="alert">
           {pinError}
@@ -105,7 +146,8 @@ export function SearchView({ sourceId, sourceName }: SearchViewProps) {
         <input
           data-el="search-input"
           value={query}
-          placeholder={t('search.placeholder')}
+          placeholder={indexLoading ? t('search.indexingPlaceholder') : t('search.placeholder')}
+          disabled={indexLoading || !searchReady}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
@@ -119,9 +161,23 @@ export function SearchView({ sourceId, sourceName }: SearchViewProps) {
           disabled={!canSearch}
           onClick={handleSearch}
         >
-          {t('search.submit')}
+          {indexLoading
+            ? t('search.indexing')
+            : searchReady
+              ? t('search.submit')
+              : t('search.notSearchable')}
         </button>
       </div>
+
+      {indexLoading ? (
+        <p data-el="search-index-loading" className="search__status">
+          {t('search.indexLoading')}
+        </p>
+      ) : indexStatus && !searchReady ? (
+        <p data-el="search-index-not-searchable" className="search__status">
+          {t('search.notSearchable')}
+        </p>
+      ) : null}
 
       {context ? (
         <section className="search__context" data-el="search-context">

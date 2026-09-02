@@ -33,6 +33,14 @@ export type SourcesEvent =
   | { type: 'backfill_cancelled'; sourceId: string; indexedFiles: number }
   | { type: 'backfill_failed'; sourceId: string; message: string };
 
+export interface IndexStatus {
+  sourceId: string;
+  fileCount: number;
+  fragmentCount: number;
+  /** true 表示该来源已索引的片段与 FTS row 已 commit，search_query 必能命中。 */
+  searchable: boolean;
+}
+
 export interface CommandErrorShape {
   code: string;
   message: string;
@@ -69,4 +77,6 @@ export const sourcesApi = {
   rebuildIndex: (id: string) => call<void>('sources_rebuild_index', { id }),
   setSyncInterval: (id: string, intervalMinutes: number) =>
     call<SourceSummary>('sources_set_sync_interval', { id, intervalMinutes }),
+  awaitIndexCommitted: (sourceId: string) =>
+    call<IndexStatus>('sources_await_index_committed', { sourceId }),
 };

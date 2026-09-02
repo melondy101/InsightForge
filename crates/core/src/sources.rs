@@ -6,8 +6,8 @@
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
+use std::time::Duration;
 
 use serde::Serialize;
 use thiserror::Error;
@@ -84,6 +84,18 @@ pub struct SourceSummary {
     pub last_synced_at: Option<String>,
 }
 
+/// 来源索引状态（await_index_committed 返回）：前端在允许 search 前必查。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexStatus {
+    pub source_id: String,
+    pub file_count: u64,
+    pub fragment_count: u64,
+    /// true 表示该来源已索引的片段与 FTS row 已 commit，
+    /// `SearchService::query(source_id, …)` 必能命中已索引片段。
+    pub searchable: bool,
+}
+
 #[derive(Debug, Error)]
 pub enum SourcesError {
     #[error("source name must not be blank")]
@@ -131,10 +143,73 @@ impl SourcesError {
     }
 }
 
-/// 正在进行的补扫作业：取消令牌 + 完成通知。
+/// 正在进行的补扫作业：取消令牌 + 完成通知（可被多观察者阻塞等待）。
 struct RunningJob {
     cancel: CancelToken,
-    done: mpsc::Receiver<()>,
+    /// 共享的 "done" 信号：predicate + Condvar。
+    /// 完成时把 `done` 置为 true 并 notify_all；多个 await_index_committed / remove 路径
+    /// 可同时阻塞等待 commit 完成，避免各自 sleep 或 poll。
+    done_signal: Arc<JobDone>,
+}
+
+/// 共享的"补扫已完成"信号：predicate 由 condvar 守护，0 写入开销。
+struct JobDone {
+    done: Mutex<bool>,
+    cvar: Condvar,
+}
+
+impl JobDone {
+    fn new() -> Self {
+        Self {
+            done: Mutex::new(false),
+            cvar: Condvar::new(),
+        }
+    }
+
+    /// 阻塞直到 done=true；带可选超时用于可取消的等待路径。
+    fn wait(&self, timeout: Option<Duration>) -> bool {
+        // 无超时路径：阻塞直到被 notify。
+        if timeout.is_none() {
+            let done = self.done.lock().unwrap_or_else(|e| e.into_inner());
+            if *done {
+                return true;
+            }
+            let guard = self
+                .cvar
+                .wait_while(done, |d| !*d)
+                .unwrap_or_else(|e| e.into_inner());
+            return *guard;
+        }
+        // 有超时路径：循环 relock + wait_timeout，直到 done 或 deadline。
+        let deadline = std::time::Instant::now() + timeout.unwrap();
+        loop {
+            let mut done = self.done.lock().unwrap_or_else(|e| e.into_inner());
+            if *done {
+                return true;
+            }
+            if std::time::Instant::now() >= deadline {
+                return false;
+            }
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            let guard = self
+                .cvar
+                .wait_timeout(done, remaining)
+                .unwrap_or_else(|e| e.into_inner());
+            done = guard.0;
+            if *done {
+                return true;
+            }
+        }
+    }
+
+    /// 标记完成并唤醒全部等待者（idempotent）。
+    fn mark_done(&self) {
+        let mut done = self.done.lock().unwrap_or_else(|e| e.into_inner());
+        if !*done {
+            *done = true;
+            self.cvar.notify_all();
+        }
+    }
 }
 
 /// 来源管理服务：克隆/共享经 `Arc`，全部方法 `&self`。
@@ -386,7 +461,8 @@ impl Sources {
         let job = self.running.lock().expect("running lock").remove(id);
         if let Some(job) = job {
             job.cancel.cancel();
-            let _ = job.done.recv(); // 等待补扫真正停止后再清理
+            // 等 backfill 真退出再清理索引记录（避免与运行中的写竞态）
+            job.done_signal.wait(None);
         }
         let removed_id = id.to_string();
         self.repo
@@ -401,9 +477,72 @@ impl Sources {
         }
     }
 
+    /// 阻塞等待指定来源的索引提交完成（fragment + FTS 已写入 SQLite），
+    /// 然后返回可观察的索引状态。
+    ///
+    /// 契约：
+    /// - 返回时该来源对应的所有已索引文件的 fragment + FTS row **必然** 已在 writer 线程 commit；
+    /// - 因此 `searchable == true` 时，`SearchService::query(source_id, …)` 必能命中已索引片段。
+    ///
+    /// 实现：不使用 sleep / poll 掩盖竞态——若该来源仍在 running map 中，
+    /// 则阻塞等待 Condvar 信号；信号由 backfill 完成后在 executor 线程内 notify。
+    pub fn await_index_committed(&self, source_id: &str) -> Result<IndexStatus, SourcesError> {
+        // 阶段 0：先验证 source 存在（避免对已删除 source 误报 searchable）。
+        let exists = self.repo.read({
+            let id = source_id.to_string();
+            move |conn| {
+                let n: i64 = conn.query_row(
+                    "SELECT COUNT(*) FROM knowledge_source WHERE id = ?1",
+                    rusqlite::params![id],
+                    |r| r.get(0),
+                )?;
+                Ok(n > 0)
+            }
+        })?;
+        if !exists {
+            return Err(SourcesError::SourceNotFound(source_id.to_string()));
+        }
+
+        // 阶段 1：若 backfill 仍在跑，阻塞等待 JobDone 信号（纯 Condvar，无 sleep）。
+        let signal = {
+            let running = self.running.lock().expect("running lock");
+            running
+                .get(source_id)
+                .map(|job| Arc::clone(&job.done_signal))
+        };
+        if let Some(sig) = signal {
+            sig.wait(None);
+        }
+
+        // 阶段 2：从数据库读最终 commit 状态。
+        let sid = source_id.to_string();
+        let (file_count, fragment_count) = self.repo.read(move |conn| {
+            let fc: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM source_file WHERE source_id = ?1",
+                rusqlite::params![sid.clone()],
+                |r| r.get(0),
+            )?;
+            let fragc: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM fragment f JOIN source_file sf ON f.source_file_id = sf.id WHERE sf.source_id = ?1",
+                rusqlite::params![sid],
+                |r| r.get(0),
+            )?;
+            Ok((fc, fragc))
+        })?;
+        Ok(IndexStatus {
+            source_id: source_id.to_string(),
+            file_count: u64::try_from(file_count).expect("COUNT(*) must be non-negative"),
+            fragment_count: u64::try_from(fragment_count).expect("COUNT(*) must be non-negative"),
+            // 严格语义：searchable = fragment_count > 0。
+            // 原因：FTS5 倒排索引在 fragment_fts INSERT 时同步建立；
+            //       fragment_count == 0 表示没有可命中片段，search 必返空（语义正确，不算违约）。
+            searchable: fragment_count > 0,
+        })
+    }
+
     fn spawn_backfill(&self, source: &StoredSource) -> Result<(), SourcesError> {
-        let (done_tx, done) = mpsc::channel();
         let cancel = CancelToken::new();
+        let done_signal = Arc::new(JobDone::new());
         {
             let mut running = self.running.lock().expect("running lock");
             if running.contains_key(&source.id) {
@@ -413,7 +552,7 @@ impl Sources {
                 source.id.clone(),
                 RunningJob {
                     cancel: cancel.clone(),
-                    done,
+                    done_signal: Arc::clone(&done_signal),
                 },
             );
         }
@@ -423,17 +562,22 @@ impl Sources {
         let job_running = Arc::clone(&self.running);
         let job_source = source.clone();
         let job_id = source.id.clone();
+        let job_signal = Arc::clone(&done_signal);
         let spawn_result = self.executor.spawn(Box::new(move || {
             indexer::run_backfill(&job_repo, &job_source, &job_sink, &cancel);
             job_running.lock().expect("running lock").remove(&job_id);
-            let _ = done_tx.send(());
+            // 在从 running map 移除后，标记 done 并唤醒所有等待者。
+            // 这保证 await_index_committed 即使在 cancel 路径下也能可靠返回。
+            job_signal.mark_done();
         }));
         if spawn_result.is_err() {
-            // executor 已关闭（正在退出）：立刻回滚登记。
+            // executor 已关闭（正在退出）：先回滚，再释放等待者。
+            // 保证 await_index_committed 不会在清理完成前看到信号并继续。
             self.running
                 .lock()
                 .expect("running lock")
                 .remove(&source.id);
+            done_signal.mark_done();
             return Err(SourcesError::Cancelled);
         }
         Ok(())

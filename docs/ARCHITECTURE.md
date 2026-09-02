@@ -95,6 +95,40 @@ Tauri 2 的 permissions / scopes / capabilities 负责命令与窗口绑定；�
 - BYOK 存 OS 凭据库（Tauri Stronghold 是加密 vault，不等同 OS 凭据库，不混用）。
 - `ai_call_audit` 记录模型、时间、发送片段数量/ID、状态；不存敏感全文。
 
+## 8. 索引-搜索时序契约
+
+### 背景：Tauri 事件投递不可靠
+
+Tauri 2 `handle.emit("sources://progress", ...)` 在开发模式 WebView2 通道中存在事件丢失窗口。Backfill 完成时的 `BackfillCompleted` 事件**无法可靠到达前端 listen**，导致前端仅依赖事件驱动的进度 UI 会出现状态不同步。
+
+### Condvar 解决方案
+
+引入 `JobDone` 信号（`Arc<Mutex<bool>> + Condvar`）：
+
+- backfill 完成后，executor 线程内先 `running.remove(job_id)`，再 `mark_done()` → `notify_all()`
+- `await_index_committed()` 若发现 source 仍在 `running` map，则 `Condvar::wait_while(|d| !*d)` 阻塞
+- **零 sleep / 零 poll**：唤醒由 Condvar 精确触发，无时间猜测
+
+### 公共命令
+
+`Tauri command` `sources_await_index_committed(sourceId: String) -> IndexStatus`
+
+```
+阶段 0: 验证 source 存在（返回 SourceNotFound 若已删除）
+阶段 1: 若在 running map，阻塞等待 Condvar 信号
+阶段 2: 从 DB 读 file_count + fragment_count
+返回: IndexStatus { source_id, file_count, fragment_count, searchable }
+```
+
+**契约保证**：当 `searchable = true` 时，FTS5 倒排索引已在 writer 线程 commit；`SearchService::query(source_id, …)` 必能命中已索引片段。
+
+### 错误处理要点
+
+- `spawn_backfill` 错误路径：先 `running.remove()` + 回滚，后 `mark_done()`，防止 `await_index_committed` 在清理前看到信号
+- Condvar poison 处理：`lock().unwrap_or_else(|e| e.into_inner())` 保留原始 panic 上下文，允许等待继续
+- `COUNT(*)` 在 SQLite 中永远 `>= 0`，`u64::try_from` 使用 `expect` 而非 `unwrap_or(0)`
+
+
 ## 8. 数据骨架
 
 | 表 | 用途 |

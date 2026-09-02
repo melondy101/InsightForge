@@ -1,0 +1,10 @@
+{
+  "integration_head": "d6cc985",
+  "runs": 20,
+  "hits": 20,
+  "zero_cards": 0,
+  "errors": 0,
+  "completed_event_count": 0,
+  "root_cause": "Tauri event channel in dev mode loses BackfillCompleted events",
+  "solution": "await_index_committed Tauri command with Condvar synchronization"
+}

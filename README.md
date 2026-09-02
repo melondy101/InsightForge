@@ -105,6 +105,28 @@ bun run tauri build      # vite build -> dist/ 后由 Tauri 打包（NSIS/MSI）
 
 首次启动会在应用数据目录创建 `insightforge.sqlite` 并跑版本化迁移。详见 `src-tauri/tauri.conf.json` 与 `docs/ARCHITECTURE.md`。
 
+### 索引-搜索时序契约
+
+为保证前端在用户调用 `search_query` 时 FTS5 索引已提交且可搜索，Rust 侧提供命令 `sources_await_index_committed(sourceId: String) -> IndexStatus`。
+
+调用流程：
+
+1. 前端 `SourcesView` 在 source 变更（add / sync / reconcile）后自动调用 `sources_await_index_committed`。
+2. Rust 侧若对应 backfill 仍在运行，通过 `JobDone` Condvar 信号同步阻塞（无 sleep / 无 poll）。
+3. 命令返回 `IndexStatus`（见下表）后，前端才启用搜索按钮。
+
+`IndexStatus` 字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `source_id` | `String` | 来源 ID |
+| `file_count` | `u64` | 已索引文件数（`source_file` 表 COUNT） |
+| `fragment_count` | `u64` | 已建立片段数（`fragment` 表 COUNT，关联 `source_file`） |
+| `searchable` | `bool` | 当 `fragment_count > 0` 时为 `true`，表示 `search_query` 必能命中 |
+
+**保证**：`await_index_committed` 返回时 `searchable=true` → FTS5 倒排索引已写入 SQLite → `SearchService::query` 必命中已索引片段。
+
+
 ## 部署到 Vercel
 
 1. 将本仓库导入 Vercel（框架自动识别为 Next.js）。

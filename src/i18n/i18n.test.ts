@@ -60,3 +60,16 @@ it('设置文案（08 号票 settings.* 命名空间）在两种语言下可用'
     'Connection failed (HTTP 401)',
   );
 });
+
+it('检索时序契约文案在两种语言下可用（C14）', () => {
+  i18n.changeLanguage('zh-CN');
+  expect(i18n.t('search.indexing')).toBe('索引中…');
+  expect(i18n.t('search.indexingPlaceholder')).toBe('等待索引完成…');
+  expect(i18n.t('search.notSearchable')).toBe('索引尚未完成，无法检索');
+  expect(i18n.t('search.indexLoading')).toBe('正在等待索引提交完成…');
+  i18n.changeLanguage('en-US');
+  expect(i18n.t('search.indexing')).toBe('Indexing…');
+  expect(i18n.t('search.indexingPlaceholder')).toBe('Waiting for indexing…');
+  expect(i18n.t('search.notSearchable')).toBe('Index not yet complete; search is unavailable');
+  expect(i18n.t('search.indexLoading')).toBe('Waiting for index commit…');
+});
