@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { DraftsView } from './drafts/DraftsView';
+import { DiagnosticsView } from './diagnostics/DiagnosticsView';
 import { ReferencesView } from './references/ReferencesView';
 import { SearchView } from './search/SearchView';
 import { SettingsView } from './settings/SettingsView';
@@ -12,7 +13,15 @@ import { useDrafts } from './drafts/useDrafts';
 import { AppStateContext, AppActionsContext, DraftsModelContext } from './AppStateContext';
 import { WorkspaceView } from './workspace/WorkspaceView';
 
-type View = 'workspace' | 'sources' | 'search' | 'settings' | 'drafts' | 'references' | 'thoughts';
+type View =
+  | 'workspace'
+  | 'sources'
+  | 'search'
+  | 'settings'
+  | 'drafts'
+  | 'references'
+  | 'thoughts'
+  | 'diagnostics';
 
 /**
  * 桌面工作区壳：侧栏导航 + 视图区。
@@ -114,6 +123,14 @@ export function App() {
                   >
                     {t('settings.nav.settings')}
                   </button>
+                  <button
+                    type="button"
+                    className="sidebar__nav-item"
+                    data-el="nav-diagnostics"
+                    onClick={() => setView('diagnostics')}
+                  >
+                    {t('diagnostics.nav.diagnostics')}
+                  </button>
                 </nav>
               </aside>
               {view === 'sources' ? (
@@ -153,6 +170,10 @@ export function App() {
               ) : view === 'thoughts' ? (
                 <section className="pane pane--thoughts" data-el="pane-thoughts">
                   <ThoughtsView />
+                </section>
+              ) : view === 'diagnostics' ? (
+                <section className="pane pane--diagnostics" data-el="pane-diagnostics">
+                  <DiagnosticsView />
                 </section>
               ) : (
                 <WorkspaceView />

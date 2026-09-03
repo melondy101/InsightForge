@@ -224,5 +224,20 @@
     "copyToClipboard": "复制到剪贴板",
     "clipboardHint": "HTML 已复制到剪贴板，粘贴到微信编辑器即可。",
     "hint": "导出的 HTML 使用 Clean Reading 主题。"
+  },
+  "diagnostics": {
+    "nav": {
+      "diagnostics": "诊断"
+    },
+    "title": "诊断",
+    "intro": "复制或导出一份脱敏的诊断快照，便于在求助时分享。它绝不含你的 API Key、草稿/来源正文或文件路径。",
+    "snapshotSection": "环境快照",
+    "eventLogSection": "近期事件",
+    "refresh": "刷新",
+    "copy": "复制快照",
+    "export": "导出",
+    "copied": "已复制！",
+    "loadError": "加载诊断信息失败：{{message}}",
+    "emptyLog": "暂无事件记录。"
   }
 }

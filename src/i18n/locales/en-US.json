@@ -224,5 +224,20 @@
     "copyToClipboard": "Copy to clipboard",
     "clipboardHint": "HTML copied to clipboard. Paste into WeChat editor.",
     "hint": "Exported HTML uses Clean Reading theme."
+  },
+  "diagnostics": {
+    "nav": {
+      "diagnostics": "Diagnostics"
+    },
+    "title": "Diagnostics",
+    "intro": "Copy or export a desensitized snapshot to share when asking for help. It never contains your API key, draft/source content, or file paths.",
+    "snapshotSection": "Environment snapshot",
+    "eventLogSection": "Recent events",
+    "refresh": "Refresh",
+    "copy": "Copy snapshot",
+    "export": "Export",
+    "copied": "Copied!",
+    "loadError": "Failed to load diagnostics: {{message}}",
+    "emptyLog": "No events recorded yet."
   }
 }
