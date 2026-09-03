@@ -42,14 +42,16 @@
 
 ```
 sources.add / list / pause / remove / sync / reconcile / rebuild_index / set_sync_interval
-search.query / open_context
 sources_await_index_committed   # 阻塞等待索引提交完成，返回 IndexStatus（含 searchable 布尔）
-drafts.open / save / resolve_conflict
-coach.start / respond / resume / mark_helpful
-thoughts.confirm / update
-references.create / list / adopt / mark_source_deleted
-egress.build / audit_log / audit_list
+search.query / open_context
 settings.get / set_ai / set_ai_enabled / set_api_key / clear_api_key / test_connection
+ai.sample                       # 发送样例请求验证连通性（只回显模型回包摘要）
+drafts.ensure_directory / list / create / open / save / delete / resolve_conflict / cleanup
+coach.start / respond / get_session / mark_helpful / archive
+thoughts.upsert / list / list_by_draft / list_by_source / delete
+references.create / list / adopt / mark_source_deleted
+egress.build / audit.log / audit.list
+diagnostics.snapshot / diagnostics.event_log   # 脱敏诊断快照 / 结构化事件日志（用户可触发复制/导出）
 ```
 
 ## 六、发布构建

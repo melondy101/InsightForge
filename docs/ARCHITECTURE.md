@@ -62,11 +62,16 @@ Rust application core
 
 ```
 sources.add / list / pause / remove / sync / reconcile / rebuild_index / set_sync_interval
-sources_await_index_committed   # 阻塞等待索引提交，返回 IndexStatus（C14）
+sources_await_index_committed   # 阻塞等待索引提交，返回 IndexStatus（含 searchable 布尔）
 search.query / open_context
-drafts.open / save / resolve_conflict
-coach.start / respond / resume / mark_helpful
-thoughts.confirm / update
+settings.get / set_ai / set_ai_enabled / set_api_key / clear_api_key / test_connection
+ai.sample
+drafts.ensure_directory / list / create / open / save / delete / resolve_conflict / cleanup
+coach.start / respond / get_session / mark_helpful / archive
+thoughts.upsert / list / list_by_draft / list_by_source / delete
+references.create / list / adopt / mark_source_deleted
+egress.build / audit.log / audit.list
+diagnostics.snapshot / diagnostics.event_log   # 脱敏诊断快照 / 结构化事件日志（用户可触发复制/导出）
 ```
 
 Tauri 2 的 permissions / scopes / capabilities 负责命令与窗口绑定；但**动态目录授权的领域规则**（知识库只读、草稿目录可写、symlink 不越界、路径不上传）必须在 Rust 业务服务内执行，不能只靠通用 FS scope。

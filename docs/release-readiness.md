@@ -18,13 +18,13 @@
 | 链接 SQLite 版本（实测） | `3.53.2`（version_number `3053002`） | `rusqlite::version()`，bundled `libsqlite3-sys 0.38.2` |
 | Rust | 1.90.0 | `rustc --version` |
 | Node/Bun | Node 22.23.2 / Bun 1.3.11 | `node -v` / `bun -v` |
-| 前端测试 | **119 passed** | `bun run test`（`vitest run`） |
+| 前端测试 | **127 passed** | `bun run test`（`vitest run`） |
 | 前端 lint / tsc / build | **全绿** | `bun run lint` / `bunx tsc --noEmit` / `bun run build` |
-| Rust 测试 | **全绿（core 100 + desktop 8）** | `cargo test` |
+| Rust 测试 | **全绿（core 113 + desktop 10 = 123）** | `cargo test --workspace` |
 | Rust fmt / clippy | **全绿** | `cargo fmt --check` / `cargo clippy -- -D warnings` |
 
 > 质量门禁运行环境：Windows 11 + cmd.exe/Git Bash 本地机器。**本机器无法执行
-> 真实签名安装包、WebView2 CDP 端到端、联网 AI 请求、安装→升级链路**。
+> 真实签名安装包、WebView2 端到端、联网 AI 请求、安装→升级链路**（E2E 规格已就绪但受探针门控为 BLOCKED）。
 
 ---
 
@@ -49,7 +49,7 @@
 | A4 | 索引-搜索时序契约 | `await_index_committed` 后才 `searchable` | `cargo test -p insightforge-core --test index_search_contract` | 3 tests |
 | A5 | 迁移框架 + schema | 迁移严格递增；打开后迁移版本可观察 | `cargo test -p insightforge-core --test schema --test repository` | 12 tests |
 | A6 | BYOK 守门与脱敏 | 无 Key/关闭/连接失败均明确降级，报告不含明文 | `cargo test -p insightforge-core --test settings` | 14 tests |
-| A7 | Release 配置 fail-closed | 缺 pubkey/endpoint/thumbprint 时 release 构建 panic | `cargo test -p insightforge-desktop`（updater_tests）+ `build.rs` 编译期检查 | 8 tests |
+| A7 | Release 配置 fail-closed | 缺 pubkey/endpoint/thumbprint 时 release 构建 panic | `cargo test -p insightforge-desktop`（updater_tests）+ `build.rs` 编译期检查 | 10 tests |
 | A8 | 冲突三选一（**本分支新增**） | keep_local / adopt_external / save_as_copy 行为正确 | `cargo test -p insightforge-core drafts` + 前端测试 | Rust + TS 测试（见 §4） |
 | A9 | 草稿不再静默丢弃磁盘 .md（**本分支新增**） | list() 自动登记游离草稿 | `cargo test -p insightforge-core drafts` | Rust 测试 |
 | A10 | 原子保存临时文件安全（**本分支新增**） | 唯一临时名 + 残留清理 | `cargo test -p insightforge-core drafts` | Rust 测试 |
@@ -65,10 +65,11 @@
 | B2 | 外部编辑冲突真实三选一 | 真实改文件 → 保存弹出冲突 → 三种选择均按预期改写/保留 | 手动脚本 + 应用内操作 | 需真实文件系统事件 |
 | B3 | 重启后状态一致 | 来源/草稿/引用/索引可用性/最近错误状态一致 | 手动脚本（关→开两次） | 需重启应用 |
 | B4 | 导出通用 HTML 与公众号剪贴板 | 反代写约束不被绕过，剪贴板双写 | 手动脚本 + 应用内操作 | 需真实剪贴板 |
-| B5 | WebView2 CDP 端到端探针 | 关键主路径经 CDP 驱动成功；无 CDP 时明确 BLOCKED，不伪 PASSED | `bun run test:e2e`（需 `INSIGHTFORGE_CDP_ENDPOINT`） | 需签名安装包或 dev 实例 + CDP |
+| B5 | WebView2 端到端探针 | `e2e/golden-path.spec.ts` 用真实 `data-el` 选择器与断言覆盖 7 条黄金路径；仅当 `INSIGHTFORGE_E2E_RUN=1` 且本机已装 WebView2（注册表探针）时运行，否则 `test.skip` 为 BLOCKED，**不伪 PASSED** | `bun run test:e2e`（需 `INSIGHTFORGE_E2E_RUN=1` + WebView2） | 需真实 Windows 11 + WebView2 环境 |
 
-> 注意：`e2e/golden-path.spec.ts` 当前**仅含占位/被注释选择器**，不可作为“Windows 安装包
-> E2E 通过”的证据（与 `e2e/README.md` 一致）。本分支提供最小探针与手动脚本。
+> 注意：`e2e/golden-path.spec.ts` 当前已用真实 `data-el` 选择器与断言实现 7 条黄金路径，但受
+> `INSIGHTFORGE_E2E_RUN` + WebView2 注册表探针门控——本机无 WebView2 时整体 BLOCKED，
+> 故**不可作为“Windows 安装包 E2E 通过”的证据**；真实验收见 `e2e/manual/verify.ps1`（与 `e2e/README.md` 一致）。
 
 ### 3.3 必须由用户提供外部条件（分类 C — 明确未做）
 
@@ -92,8 +93,8 @@
 | 游离草稿登记 | list() 自动 upsert 磁盘 .md | — | `crates/core/src/drafts.rs` |
 | 临时文件安全 | 唯一临时名 + 启动/列表时清理残留 | — | `crates/core/src/drafts.rs` |
 | 开库完整性 | 写入垃圾 → `RepositoryError::Corrupt` + `.corrupt.bak` | — | `crates/core/src/repository/mod.rs` |
-| 诊断快照 | `Diagnostics::collect` 脱敏快照（注入 now/版本） | 渲染 + 复制/导出 JSON | `crates/core/src/diagnostics.rs`, `src/diagnostics/*` |
-| 事件日志 | `EventLog` 环形缓冲 + 文件滚动 | — | `crates/core/src/eventlog.rs` |
+| 诊断快照 | `build_snapshot` 脱敏快照（注入 now/版本） | 渲染 + 复制/导出 JSON | `crates/core/src/diagnostics.rs`, `src/diagnostics/*` |
+| 事件日志 | `EventLog` 环形缓冲 + 字段级脱敏（`MUST_NOT_LOG_KEYS`） | — | `crates/core/src/diagnostics.rs` |
 
 > 每个能力均先写失败测试 → 最小实现 → 转绿；任意时刻不超过一个失败测试。
 
@@ -107,8 +108,9 @@
   `0.1.0` 不一致 → 已改为明确“目标版本 1.0.0；当前构建版本 0.1.0”。
 - **D3（澄清）**：`ROADMAP.md` 2026-09-02 状态称“M1–M3 与双导出已合入 main”，
   但**冲突三选一后端原本未实现**（前端 `resolveConflict` 为 noop）。本分支已补齐，状态已更新。
-- **D4（未做，属预期）**：`e2e/golden-path.spec.ts` 长期为占位，不能作为 E2E 通过证据
-  （`e2e/README.md` 已声明）。本分支提供最小探针 + 手动脚本，不伪造 PASSED。
+- **D4（已澄清）**：`e2e/golden-path.spec.ts` 早期为占位；本分支已改写为真实 `data-el` 选择器 + 断言，
+  但仍受 `INSIGHTFORGE_E2E_RUN` + WebView2 探针门控，无 WebView2 时明确 BLOCKED，不伪造 PASSED
+  （见 `e2e/README.md`）。安装→升级实测仍依赖 C1–C3 与真实环境，未执行。
 
 ---
 
@@ -129,3 +131,4 @@
 | --- | --- | --- | --- |
 | 2026-09-02 | 基线门禁全跑 | 全绿（前端 119 / Rust 全绿） | 发现 updater 测试偶发 flaky，已修复（见 git log） |
 | 2026-09-02 | SQLite 版本实测 | 3.53.2 | 满足 ARCHITECTURE “≥3.51.3” 要求 |
+| 2026-09-03 | 全门禁复跑（Phase A–F 收尾） | 全绿（前端 127 / Rust 123；clippy `-D warnings` / fmt / build 通过） | 新增冲突三选一、孤儿草稿登记、临时文件清理、DB 完整性降级、脱敏诊断快照/事件日志、E2E 探针与发布 Runbook |

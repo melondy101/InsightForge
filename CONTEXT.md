@@ -62,6 +62,7 @@
 | **开始/回应/接续/反馈陪练** | `coach.start / respond / resume / mark_helpful` | 三轮协议；结束把笔还给作者。 |
 | **确认思考卡** | `thoughts.confirm / update` | 沉淀想法-素材-草稿位置关系。 |
 | **导出** | `export` | `generic-html`（完整 HTML 文件）\| `wechat-clipboard-html`（内联样式片段，双写剪贴板）。 |
+| **诊断导出** | `diagnostics_snapshot` / `diagnostics_event_log` | 用户可随时触发脱敏诊断快照与结构化事件日志（不含密钥/草稿正文/文件路径），复制或导出用于求助。 |
 
 ---
 

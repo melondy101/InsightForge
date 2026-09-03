@@ -1,22 +1,29 @@
 # InsightForge Windows E2E
 
-`e2e/golden-path.spec.ts` 是 Windows 桌面验收的待完善规格，不能替代真实 Tauri/WebView2 验证，也不应把安装包当作 HTTP server。
+`e2e/golden-path.spec.ts` 用真实 `data-el` 选择器与断言覆盖 7 条黄金主路径（首次启动→索引→中文检索、证据→草稿→引用、编辑→保存→外部冲突三选一、删来源保留快照、导出、无 AI Key 降级、重启状态一致）。
 
-## 当前基线
+## 门控（BLOCKED，不伪 PASSED）
 
-- 已在真实 Tauri dev 实例通过 WebView2 CDP 验证核心来源、草稿、搜索和引用调用链。
-- Playwright 规格仍含占位/跳过项；在这些断言改为真实交互前，不得宣称 Windows 安装包 E2E 通过。
-- `@tauri-apps/playwright` 不在依赖树中；不要添加它，也不要在 `playwright.config.ts` 配置 `webServer` 来启动 `.exe`。
+规格整体受探针门控，绝不在无 WebView2 时假绿：
 
-## 真实验收前置条件
+- 仅当 `INSIGHTFORGE_E2E_RUN=1` **且**本机已安装 WebView2（注册表 `HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A08C11}` 存在）时，用例才运行；
+- 否则 `test.skip(!probe.ok, reason)` 整体 BLOCKED，由 CI/本机明确报告为“未运行”，不计入通过。
 
-1. Windows 10/11 与 WebView2 Runtime。
-2. 真实签名安装包、可访问的 HTTPS updater endpoint，以及安全注入的 updater 私钥（仅对公开发布需要）。
-3. 启动时明确启用 WebView2 CDP 端口，并通过 `INSIGHTFORGE_CDP_ENDPOINT` 连接。
+探针实现见 `e2e/support/probe.ts`；隔离的临时数据目录由 `e2e/support/fixtures.ts` 注入 `INSIGHTFORGE_E2E_DATA_DIR` 并自动清理。
+
+## 前置条件（真实验收）
+
+1. Windows 10/11 已安装 WebView2 Runtime。
+2. 真实签名安装包、可访问的 HTTPS updater endpoint，以及安全注入的 updater 私钥（仅公开发布需要）。
+3. 设置 `INSIGHTFORGE_E2E_RUN=1`。
 
 ```powershell
-$env:INSIGHTFORGE_CDP_ENDPOINT = 'http://127.0.0.1:9222'
+$env:INSIGHTFORGE_E2E_RUN = '1'
 bun run test:e2e
 ```
+
+## 手动兜底
+
+`e2e/manual/verify.ps1` 是 Windows 手动验证清单（来源索引→中文检索、证据→引用、冲突三选一、删除来源保留快照、导出、无 AI Key 降级、重启状态保持、诊断脱敏）。它不依赖 Playwright，适合在真实安装包上逐条核对。
 
 个人自用不要求购买代码签名证书；但这不构成公开发布签名或安装升级验证通过的证据。
