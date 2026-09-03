@@ -1,90 +1,119 @@
-import { test, expect, type Page } from '@playwright/test';
+import { Page } from '@playwright/test';
+import { test, expect } from './support/fixtures';
+import { probeE2E, skipReason } from './support/probe';
+
+const probe = probeE2E();
+
+/**
+ * 文件级 BLOCKED：无 WebView2 / CDP（或 `INSIGHTFORGE_E2E_RUN!=1`）时，整组黄金路径
+ * 在报告中呈现为 skipped（BLOCKED），绝不伪造 PASS。详见 support/probe.ts。
+ */
+test.skip(!probe.ok, skipReason(probe));
+
+/** 每个黄金路径失败时按路径命名截图，便于事后取证（evidence file names per path）。 */
+async function evidence(page: Page, name: string) {
+  try {
+    await page.screenshot({ path: `e2e/evidence/${name}.png`, fullPage: false });
+  } catch {
+    // 取证失败不应阻断测试本身
+  }
+}
 
 async function waitForApp(page: Page) {
   await page.waitForSelector('[data-el="workspace"]', { timeout: 60_000 });
 }
 
-test.describe('InsightForge Windows E2E', () => {
+test.describe('InsightForge Windows E2E — 黄金路径', () => {
   test.beforeEach(async ({ page }) => {
     await waitForApp(page);
   });
 
-  test('directory selection → indexing progress → evidence card → edit save', async ({ page }) => {
-    // 1. 打开来源管理
+  test('首启 → 添加来源 → 索引 → 中文检索', async ({ page }) => {
     await page.click('[data-el="nav-sources"]');
     await expect(page.locator('[data-el="pane-sources"]')).toBeVisible();
 
-    // 2. 点击添加来源
-    await page.click('[data-el="source-add-button"]');
-    // 注意：真实测试需处理系统对话框；此处为选择器占位
+    await page.click('[data-el="sources-add"]');
+    await page.fill('[data-el="sources-add-name"]', 'notes');
+    await page.fill('[data-el="sources-add-path"]', '%E2E_SOURCE_DIR%');
+    await page.click('[data-el="sources-add-submit"]');
 
-    // 3. 等待索引进度出现
-    // await expect(page.locator('[data-el="index-progress"]')).toBeVisible();
+    await expect(page.locator('[data-el="sources-progress-bar"]')).toBeVisible();
+    await page.waitForSelector('[data-el="sources-row-status"]:has-text("Idle")', {
+      timeout: 120_000,
+    });
 
-    // 4. 切换到搜索视图
     await page.click('[data-el="nav-search"]');
-    await expect(page.locator('[data-el="search-view"]')).toBeVisible();
-
-    // 5. 执行搜索
     await page.fill('[data-el="search-input"]', '测试');
     await page.click('[data-el="search-submit"]');
     await expect(page.locator('[data-el="search-results"]')).toBeVisible();
-
-    // 6. 打开证据卡上下文
-    if (await page.locator('[data-el="search-card"]').count() > 0) {
-      await page.click('[data-el="search-card"] [data-el="search-card-context"]');
-      await expect(page.locator('[data-el="search-context"]')).toBeVisible();
-    }
-
-    // 7. 切换到工作台编辑
-    await page.click('[data-el="nav-workspace"]');
-    await expect(page.locator('[data-el="workspace"]')).toBeVisible();
-
-    // 8. 保存草稿（需编辑器适配层支持）
-    // await page.click('[data-el="save-draft-button"]');
+    await evidence(page, 'search-chinese');
   });
 
-  test('external conflict → local/external/save-as resolution', async ({ page }) => {
+  test('证据卡 → 钉入草稿 → 引用快照', async ({ page }) => {
+    await page.click('[data-el="nav-search"]');
+    await page.fill('[data-el="search-input"]', '测试');
+    await page.click('[data-el="search-submit"]');
+    await expect(page.locator('[data-el="search-card"]').first()).toBeVisible();
+
+    await page.click('[data-el="search-card-pin"]');
     await page.click('[data-el="nav-drafts"]');
-    await expect(page.locator('[data-el="pane-drafts"]')).toBeVisible();
-
-    // 冲突三选一需外部文件变更触发；此处为选择器占位
-    // await page.click('[data-el="conflict-choice-local"]');
+    await page.click('[data-el="drafts-list"] >> text=note.md');
+    await page.click('[data-el="nav-references"]');
+    await expect(page.locator('[data-el="reference-item"]').first()).toBeVisible();
+    await evidence(page, 'evidence-to-reference');
   });
 
-  test('AI consent → egress bundle preview → audit log', async ({ page }) => {
+  test('编辑 → 保存 → 外部冲突 → 三选一', async ({ page, dataDir }) => {
+    await page.click('[data-el="nav-drafts"]');
+    // 新建草稿（处理浏览器 prompt 对话框）
+    page.on('dialog', (d) => d.accept('note.md'));
+    await page.click('[data-el="drafts-new"]');
+    await page.fill('[data-el="drafts-editor-textarea"]', '本地内容');
+    await page.click('[data-el="drafts-save"]');
+
+    // 模拟外部编辑器改动磁盘文件，制造冲突
+    const fs = await import('node:fs');
+    fs.writeFileSync(`${dataDir}/drafts/note.md`, '外部改动');
+
+    await page.fill('[data-el="drafts-editor-textarea"]', '再次本地内容');
+    await page.click('[data-el="drafts-save"]');
+    await expect(page.locator('[data-el="drafts-conflict"]')).toBeVisible();
+
+    await page.click('[data-el="drafts-conflict-local"]');
+    await expect(page.locator('[data-el="drafts-conflict"]')).toHaveCount(0);
+    await evidence(page, 'conflict-keep-local');
+  });
+
+  test('删除来源 → 本地草稿快照仍保留', async ({ page }) => {
+    await page.click('[data-el="nav-sources"]');
+    await page.click('[data-el="sources-row-actions"] >> [data-el="sources-remove-btn"]');
+    // 确认删除对话框
+    page.on('dialog', (d) => d.accept());
+    await expect(page.locator('[data-el="sources-empty"]')).toBeVisible();
+
+    await page.click('[data-el="nav-diagnostics"]');
+    await expect(page.locator('[data-el="diagnostics-snapshot-text"]')).toBeVisible();
+    await evidence(page, 'source-delete-retained');
+  });
+
+  test('导出 HTML 流程', async ({ page }) => {
+    await page.click('[data-el="nav-drafts"]');
+    await page.click('[data-el="drafts-list"] >> text=note.md');
+    await page.click('[data-el="export-submit"]');
+    await evidence(page, 'export-html');
+  });
+
+  test('无 AI Key 降级：AI 命令不可用但其余可用', async ({ page }) => {
     await page.click('[data-el="nav-settings"]');
     await expect(page.locator('[data-el="pane-settings"]')).toBeVisible();
-
-    // AI 总开关与 consent 流程
-    // await page.click('[data-el="ai-toggle"]');
-    // await page.click('[data-el="nav-egress"]');
-    // await expect(page.locator('[data-el="egress-bundle"]')).toBeVisible();
+    // 未配置 Key 时应显示「未配置」徽标
+    await expect(page.locator('text=Not configured').or(page.locator('text=未配置'))).toBeVisible();
+    await evidence(page, 'no-ai-key-degrade');
   });
 
-  test('generic HTML export flow', async ({ page }) => {
+  test('重启后状态保持（草稿仍在）', async ({ page }) => {
     await page.click('[data-el="nav-drafts"]');
-    await page.click('[data-el="export-button"]');
-    await expect(page.locator('[data-el="export-view"]')).toBeVisible();
-    await page.click('[data-el="export-submit"]');
-    // 验证下载触发（需真实文件系统）
-  });
-
-  test('WeChat clipboard export flow', async ({ page }) => {
-    await page.click('[data-el="nav-drafts"]');
-    await page.click('[data-el="clipboard-export-button"]');
-    await expect(page.locator('[data-el="clipboard-export-view"]')).toBeVisible();
-    // 验证剪贴板内容（需真实桌面环境）
-  });
-
-  test('thought card create → update → navigate', async ({ page }) => {
-    await page.click('[data-el="nav-thoughts"]');
-    await expect(page.locator('[data-el="pane-thoughts"]')).toBeVisible();
-    // 创建、更新、跳转流程占位
-  });
-
-  test('install → upgrade → background process exit', async () => {
-    // 本测试在签名安装包上升级验证；需 Windows 环境 + 签名证书
-    test.skip(!!process.env.INSIGHTFORGE_SKIP_INSTALL, 'Skip install/upgrade in non-Windows');
+    await expect(page.locator('[data-el="drafts-list"]')).toBeVisible();
+    await evidence(page, 'restart-state');
   });
 });

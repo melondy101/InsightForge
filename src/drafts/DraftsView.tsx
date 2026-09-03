@@ -34,13 +34,17 @@ function ConflictDialog({
       <h3>{t('drafts.conflictTitle')}</h3>
       <p>{conflict.message}</p>
       <div className="drafts-conflict__actions">
-        <button type="button" onClick={() => onResolve('local')}>
+        <button type="button" data-el="drafts-conflict-local" onClick={() => onResolve('local')}>
           {t('drafts.conflictKeepLocal')}
         </button>
-        <button type="button" onClick={() => onResolve('external')}>
+        <button
+          type="button"
+          data-el="drafts-conflict-external"
+          onClick={() => onResolve('external')}
+        >
           {t('drafts.conflictAdoptExternal')}
         </button>
-        <button type="button" onClick={() => onResolve('saveAs')}>
+        <button type="button" data-el="drafts-conflict-saveas" onClick={() => onResolve('saveAs')}>
           {t('drafts.conflictSaveAs')}
         </button>
       </div>
@@ -87,15 +91,20 @@ export function DraftsView() {
       <header className="drafts-view__header">
         <h2>{t('drafts.title')}</h2>
         <div className="drafts-view__toolbar">
-          <button type="button" onClick={handleCreate} disabled={status !== 'idle'}>
+          <button type="button" data-el="drafts-new" onClick={handleCreate} disabled={status !== 'idle'}>
             {t('drafts.new')}
           </button>
           {activeDraft && (
             <>
-              <button type="button" onClick={handleSave} disabled={status !== 'idle'}>
+              <button type="button" data-el="drafts-save" onClick={handleSave} disabled={status !== 'idle'}>
                 {t('drafts.save')}
               </button>
-              <button type="button" onClick={handleDelete} disabled={status !== 'idle'}>
+              <button
+                type="button"
+                data-el="drafts-delete"
+                onClick={handleDelete}
+                disabled={status !== 'idle'}
+              >
                 {t('drafts.delete')}
               </button>
             </>
