@@ -416,6 +416,29 @@ impl DraftsService {
         Ok(())
     }
 
+    /// 清理崩溃/中断保存遗留的临时文件（命名形如 `<name>.<pid>-<n>.tmp`）。
+    ///
+    /// 真实内容永远在 `.md`（原子替换保证 `.md` 是已提交版本），遗留的 `.tmp`
+    /// 永远不是真相，可安全删除。启动时调用一次即可；调用时无在途保存，不会误删进行中的临时文件。
+    /// 仅清理符合本服务命名模式的 `.tmp`，避免误删用户或其他工具的临时文件。
+    pub fn cleanup_stale_temp_files(&self) -> Result<usize, DraftsError> {
+        let mut removed = 0;
+        for entry in std::fs::read_dir(&self.drafts_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            if path.extension().map(|e| e == "tmp").unwrap_or(false)
+                && is_our_temp(name)
+                && std::fs::remove_file(&path).is_ok()
+            {
+                removed += 1;
+            }
+        }
+        Ok(removed)
+    }
+
     // --- 内部：SQLite 薄投影 ---
 
     fn load_draft(&self, path: &Path) -> Result<Option<DraftFile>, DraftsError> {
@@ -528,6 +551,28 @@ fn mtime_to_iso(mtime_ms: i64) -> String {
         Some(dt) => dt.format("%Y-%m-%dT%H:%M:%S.%6fZ").to_string(),
         None => now_iso(),
     }
+}
+
+/// 判断文件名是否为本服务的临时文件：`<orig>.<pid>-<n>.tmp`。
+/// 仅当后缀为 `.tmp` 且倒数第二段为纯数字-纯数字时命中，避免误删其他 `.tmp`。
+fn is_our_temp(name: &str) -> bool {
+    if !name.ends_with(".tmp") {
+        return false;
+    }
+    let stem = &name[..name.len() - 4]; // 去掉 ".tmp"
+    let Some(idx) = stem.rfind('.') else {
+        return false;
+    };
+    let suffix = &stem[idx + 1..];
+    let mut parts = suffix.split('-');
+    matches!(
+        (parts.next(), parts.next(), parts.next()),
+        (Some(a), Some(b), None)
+            if !a.is_empty()
+                && !b.is_empty()
+                && a.bytes().all(|c| c.is_ascii_digit())
+                && b.bytes().all(|c| c.is_ascii_digit())
+    )
 }
 
 fn generate_id(filename: &str) -> String {
@@ -718,5 +763,38 @@ mod tests {
             registered.unwrap().id,
             "id must be stable across list calls"
         );
+    }
+
+    /// 崩溃/中断保存会遗留 .tmp 临时文件；cleanup_stale_temp_files 必须清掉它们，
+    /// 且不能误删用户 .md 或合法的 .conflict. 副本（真实内容永远在 .md）。
+    #[test]
+    fn cleanup_removes_orphaned_temp_files_only() {
+        let (_repo, service, dir) = setup_service();
+        let drafts_dir = dir.path().join("drafts");
+        std::fs::create_dir_all(&drafts_dir).unwrap();
+
+        // 模拟崩溃遗留的临时文件（符合命名模式 <name>.<pid>-<n>.tmp）
+        let temp1 = drafts_dir.join("note.md.1234-0.tmp");
+        std::fs::write(&temp1, "partial").unwrap();
+        let temp2 = drafts_dir.join("note.md.5678-1.tmp");
+        std::fs::write(&temp2, "partial").unwrap();
+        // 真实草稿，必须保留
+        let real = drafts_dir.join("note.md");
+        std::fs::write(&real, "real content").unwrap();
+        // 合法的冲突副本，必须保留
+        let other = drafts_dir.join("note.md.conflict.999.md");
+        std::fs::write(&other, "copy").unwrap();
+
+        let removed = service
+            .cleanup_stale_temp_files()
+            .expect("cleanup should succeed");
+        assert_eq!(
+            removed, 2,
+            "exactly the two orphaned temps should be removed"
+        );
+        assert!(!temp1.exists(), "temp1 removed");
+        assert!(!temp2.exists(), "temp2 removed");
+        assert!(real.exists(), "real .md kept");
+        assert!(other.exists(), "conflict copy kept");
     }
 }

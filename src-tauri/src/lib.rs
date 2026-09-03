@@ -315,6 +315,13 @@ fn drafts_delete(state: State<'_, DraftsState>, filename: String) -> Result<(), 
     Ok(state.0.delete(&filename)?)
 }
 
+/// 清理崩溃/中断保存遗留的临时文件，返回被清理的数量。
+/// 真实内容永远在 `.md`，遗留 `.tmp` 可安全删除；启动时调用一次。
+#[tauri::command]
+fn drafts_cleanup(state: State<'_, DraftsState>) -> Result<usize, CommandError> {
+    Ok(state.0.cleanup_stale_temp_files()?)
+}
+
 /// 冲突三选一：绝不静默覆盖，按用户决策显式改写或保留。
 /// `resolution` 为 `keep_local` / `adopt_external` / `save_as_copy` 之一。
 #[tauri::command]
@@ -565,6 +572,11 @@ pub fn run() {
             // 06 号票：草稿服务——原子保存 + 冲突检测
             let drafts_dir = data_dir.join("drafts");
             let drafts = Arc::new(DraftsService::new(Arc::clone(&db), drafts_dir));
+            // 启动时清理崩溃/中断保存遗留的临时文件（真实内容在 .md，遗余 .tmp 可安全删）。
+            let cleaned = drafts.cleanup_stale_temp_files().unwrap_or(0);
+            if cleaned > 0 {
+                println!("[insightforge] drafts: cleaned {cleaned} orphaned temp file(s) at startup");
+            }
             app.manage(DraftsState(Arc::clone(&drafts)));
 
             // 07 号票：引用服务——不可变快照
@@ -627,6 +639,7 @@ pub fn run() {
             drafts_save,
             drafts_delete,
             drafts_resolve_conflict,
+            drafts_cleanup,
             references_create,
             references_list,
             references_adopt,
