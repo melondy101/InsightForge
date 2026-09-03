@@ -1,7 +1,13 @@
 {
   "shell": {
     "appTitle": "织知 InsightForge",
-    "sidebar": "侧栏"
+    "sidebar": "侧栏",
+    "groupWriting": "写作",
+    "groupSources": "来源",
+    "groupSystem": "系统",
+    "themeToggle": "切换主题",
+    "aiReady": "AI 就绪",
+    "version": "版本 {{version}}"
   },
   "workspace": {
     "paneLeft": "证据架 / 检索",

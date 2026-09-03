@@ -1,7 +1,13 @@
 {
   "shell": {
     "appTitle": "InsightForge",
-    "sidebar": "Sidebar"
+    "sidebar": "Sidebar",
+    "groupWriting": "Writing",
+    "groupSources": "Sources",
+    "groupSystem": "System",
+    "themeToggle": "Toggle theme",
+    "aiReady": "AI Ready",
+    "version": "Version {{version}}"
   },
   "workspace": {
     "paneLeft": "Evidence / Search",
