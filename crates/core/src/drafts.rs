@@ -127,6 +127,9 @@ impl DraftsService {
     }
 
     /// 列出草稿目录下的 .md 文件。
+    ///
+    /// 磁盘上存在、但数据库无登记的 .md（例如用户用外部编辑器直接落地的文件）
+    /// 会被自动登记，绝不静默丢弃——否则用户会看到「文件明明在磁盘，列表里却没有」。
     pub fn list(&self) -> Result<Vec<DraftFile>, DraftsError> {
         let entries = std::fs::read_dir(&self.drafts_dir)?;
         let mut drafts = Vec::new();
@@ -134,13 +137,40 @@ impl DraftsService {
             let entry = entry?;
             let path = entry.path();
             if path.extension().map(|e| e == "md").unwrap_or(false) {
-                if let Some(draft) = self.load_draft(&path)? {
-                    drafts.push(draft);
-                }
+                let draft = match self.load_draft(&path)? {
+                    Some(d) => d,
+                    None => self.register_orphan(&path)?,
+                };
+                drafts.push(draft);
             }
         }
         drafts.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
         Ok(drafts)
+    }
+
+    /// 自动登记磁盘上未经 create() 登记过的 .md 文件：读基线、生成 id、入库，
+    /// 使其出现在列表中并可被 open()/save() 正常处理。
+    fn register_orphan(&self, path: &Path) -> Result<DraftFile, DraftsError> {
+        let filename = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| DraftsError::InvalidName("invalid filename".to_string()))?
+            .to_string();
+        let baseline = self.read_baseline(path)?;
+        // 用文件 mtime 作为创建/更新时间，使列表排序反映真实文件新旧而非登记时刻。
+        let ts = mtime_to_iso(baseline.mtime_ms);
+        let draft = DraftFile {
+            id: generate_id(&filename),
+            path: path.to_string_lossy().to_string(),
+            filename,
+            baseline_hash: baseline.hash,
+            baseline_mtime_ms: baseline.mtime_ms,
+            baseline_size: baseline.size,
+            created_at: ts.clone(),
+            updated_at: ts,
+        };
+        self.upsert_draft(&draft)?;
+        Ok(draft)
     }
 
     /// 新建草稿文件（正文空，仅元数据入库）。
@@ -489,6 +519,17 @@ fn now_iso() -> String {
     Utc::now().format("%Y-%m-%dT%H:%M:%S.%6fZ").to_string()
 }
 
+/// 将文件 mtime（毫秒）转 ISO-8601，便于把磁盘文件的新旧如实反映到列表排序。
+/// 解析失败时回退到当前时间，绝不因此让 list() 失败。
+fn mtime_to_iso(mtime_ms: i64) -> String {
+    let secs = mtime_ms / 1000;
+    let nanos = (mtime_ms % 1000) * 1_000_000;
+    match chrono::DateTime::from_timestamp(secs, nanos as u32) {
+        Some(dt) => dt.format("%Y-%m-%dT%H:%M:%S.%6fZ").to_string(),
+        None => now_iso(),
+    }
+}
+
 fn generate_id(filename: &str) -> String {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
@@ -640,5 +681,42 @@ mod tests {
     fn conflict_resolution_rejects_unknown_choice() {
         assert!("nonsense".parse::<ConflictResolution>().is_err());
         assert!("keep_local".parse::<ConflictResolution>().is_ok());
+    }
+
+    /// 草稿目录里未经 create()、直接落到磁盘的 .md 文件，list() 必须自动登记并出现，
+    /// 绝不能静默丢弃（这正是此前「磁盘有文件却不在列表里」的根因）。
+    #[test]
+    fn list_auto_registers_orphaned_disk_draft() {
+        let (_repo, service, dir) = setup_service();
+
+        // 外部直接写入一个 .md 文件，完全不经过 create()
+        let draft_path = dir.path().join("drafts").join("orphan.md");
+        if let Some(parent) = draft_path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(&draft_path, "orphaned content").unwrap();
+
+        let drafts = service.list().expect("list should succeed");
+        let names: Vec<String> = drafts.iter().map(|d| d.filename.clone()).collect();
+        assert!(
+            names.contains(&"orphan.md".to_string()),
+            "orphaned disk draft must appear in list, got: {names:?}"
+        );
+
+        // 自动登记后应有 DB 记录，open() 不应再报 NotFound
+        let registered = service.find_draft("orphan.md").unwrap();
+        assert!(
+            registered.is_some(),
+            "orphaned draft must be registered in DB"
+        );
+
+        // 再次 list 不应重复登记（id 稳定）
+        let drafts2 = service.list().unwrap();
+        let orphan = drafts2.iter().find(|d| d.filename == "orphan.md").unwrap();
+        assert_eq!(
+            orphan.id,
+            registered.unwrap().id,
+            "id must be stable across list calls"
+        );
     }
 }
