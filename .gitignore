@@ -282,3 +282,6 @@ src-tauri/gen/schemas/
 
 # C14 golden-path fixture temp files (not committed, keeps worktree clean).
 /.scratch/golden-path/c14-index-search-contract/fixtures-*/
+/e2e-results.json
+/e2e/evidence/
+/e2e-report/

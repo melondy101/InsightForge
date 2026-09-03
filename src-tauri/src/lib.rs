@@ -909,4 +909,33 @@ mod updater_tests {
             "bundle.windows.timestampUrl must use HTTPS, found: {ts_url}"
         );
     }
+
+    /// 提交的 tauri.conf.json 必须保留 dev 占位 endpoint，严禁硬编码真实更新地址。
+    /// 真实 endpoint 仅在 release 构建时由 INSIGHTFORGE_UPDATER_ENDPOINT 注入。
+    #[test]
+    fn committed_endpoint_is_dev_placeholder() {
+        let conf = load_tauri_conf();
+        let endpoints = conf["plugins"]["updater"]["endpoints"]
+            .as_array()
+            .expect("endpoints is array");
+        assert_eq!(
+            endpoints[0].as_str(),
+            Some("https://localhost/updater-dev.json"),
+            "committed endpoints must stay as dev placeholder; real URL is injected at release build"
+        );
+    }
+
+    /// 提交的 tauri.conf.json 的 pubkey 必须是内置测试回退公钥，
+    /// 真实公钥在 release 构建时由 INSIGHTFORGE_UPDATER_PUBKEY 覆盖。
+    #[test]
+    fn committed_pubkey_is_test_fallback() {
+        let conf = load_tauri_conf();
+        let pubkey = conf["plugins"]["updater"]["pubkey"]
+            .as_str()
+            .expect("plugins.updater.pubkey must be a string");
+        assert_eq!(
+            pubkey, TEST_FALLBACK,
+            "committed pubkey must remain the test fallback; real key is injected at release build"
+        );
+    }
 }
