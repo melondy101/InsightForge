@@ -2,13 +2,13 @@
 //! 经窄而有类型的命令暴露（ARCHITECTURE §4：sources.* 与 08 号票的 settings.* / ai_sample）。
 
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
 use insightforge_core::coach::CoachTurnInput;
-use insightforge_core::diagnostics::DiagnosticSnapshot;
+use insightforge_core::diagnostics::{DiagnosticSnapshot, EventLog, LogLevel};
 use insightforge_core::egress::{
     AuditLogger, AuditRecord, EgressBundle, EgressBundleBuilder, EgressError,
 };
@@ -44,6 +44,9 @@ pub struct EgressState(pub Arc<EgressBundleBuilder>, pub Arc<AuditLogger>);
 
 /// 思考卡服务状态。
 pub struct ThoughtsState(pub Arc<ThoughtsService>);
+
+/// 结构化事件日志状态（环形缓冲、脱敏，供诊断导出）。
+pub struct EventLogState(pub Arc<Mutex<insightforge_core::diagnostics::EventLog>>);
 
 /// 陪练服务状态。
 pub struct CoachState(pub Arc<CoachService>);
@@ -347,6 +350,21 @@ fn diagnostics_snapshot(
     )?)
 }
 
+/// 返回近期结构化事件日志（新→旧），用于诊断导出。已按 must-not-log 列表脱敏，
+/// 可直接复制给用户支持。
+#[tauri::command]
+fn diagnostics_event_log(
+    state: State<'_, EventLogState>,
+    limit: Option<usize>,
+) -> Result<String, CommandError> {
+    let log = state.0.lock().map_err(|_| CommandError {
+        code: "event_log_locked",
+        message: "event log mutex was poisoned".to_string(),
+    })?;
+    let limit = limit.unwrap_or(100);
+    Ok(log.to_json_of_newest(limit))
+}
+
 /// 冲突三选一：绝不静默覆盖，按用户决策显式改写或保留。
 /// `resolution` 为 `keep_local` / `adopt_external` / `save_as_copy` 之一。
 #[tauri::command]
@@ -545,6 +563,62 @@ fn updater_pubkey() -> String {
     }
 }
 
+/// 把来源索引事件转成脱敏的结构化日志条目：只记来源 id 与计数，绝不记 rel_path / message
+///（可能泄露用户文件路径或错误细节）。事件名稳定为 `source.<stage>`。
+fn log_source_event(log: &mut EventLog, event: &SourceEvent) {
+    let (stage, source_id, extra): (&str, &str, Vec<(&str, String)>) = match event {
+        SourceEvent::BackfillStarted {
+            source_id,
+            total_files,
+        } => (
+            "backfill_started",
+            source_id,
+            vec![("total_files", total_files.to_string())],
+        ),
+        SourceEvent::FileIndexed {
+            source_id,
+            processed,
+            total_files,
+            fragment_count,
+            ..
+        } => (
+            "file_indexed",
+            source_id,
+            vec![
+                ("processed", processed.to_string()),
+                ("total_files", total_files.to_string()),
+                ("fragments", fragment_count.to_string()),
+            ],
+        ),
+        SourceEvent::BackfillCompleted {
+            source_id,
+            indexed_files,
+            total_files,
+        } => (
+            "backfill_completed",
+            source_id,
+            vec![
+                ("indexed_files", indexed_files.to_string()),
+                ("total_files", total_files.to_string()),
+            ],
+        ),
+        SourceEvent::BackfillCancelled {
+            source_id,
+            indexed_files,
+        } => (
+            "backfill_cancelled",
+            source_id,
+            vec![("indexed_files", indexed_files.to_string())],
+        ),
+        SourceEvent::BackfillFailed { source_id, .. } => ("backfill_failed", source_id, vec![]),
+    };
+    let mut pairs: Vec<(&str, &str)> = vec![("source", source_id)];
+    for (k, v) in &extra {
+        pairs.push((*k, v));
+    }
+    log.push(LogLevel::Info, &format!("source.{stage}"), &pairs);
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -568,11 +642,39 @@ pub fn run() {
             );
             app.manage(WorkspaceDb(Arc::clone(&db)));
 
-            // 索引进度经事件通道推送前端（spec：事件通道推送状态）。
+            // 结构化事件日志（环形缓冲 + 脱敏），供诊断导出。
+            let event_log: Arc<Mutex<EventLog>> = Arc::new(Mutex::new(EventLog::new(200)));
+            {
+                let mut log = event_log.lock().unwrap();
+                log.push(
+                    LogLevel::Info,
+                    "app.startup",
+                    &[
+                        ("sqlite", Repository::sqlite_libversion()),
+                        (
+                            "journal",
+                            &db.journal_mode().unwrap_or_else(|_| "unknown".into()),
+                        ),
+                        (
+                            "migrations",
+                            &db.applied_migrations()
+                                .map(|v| v.len())
+                                .unwrap_or(0)
+                                .to_string(),
+                        ),
+                    ],
+                );
+            }
+
+            // 索引进度经事件通道推送前端（spec：事件通道推送状态），同时记入结构化日志。
             let handle = app.handle().clone();
+            let event_log_for_sink = Arc::clone(&event_log);
             let sink: EventSink = Arc::new(move |event: SourceEvent| {
                 if let Err(err) = handle.emit("sources://progress", &event) {
                     eprintln!("[insightforge] failed to emit progress event: {err}");
+                }
+                if let Ok(mut log) = event_log_for_sink.lock() {
+                    log_source_event(&mut log, &event);
                 }
             });
             app.manage(SourcesState(Arc::new(Sources::new(Arc::clone(&db), sink))));
@@ -603,6 +705,8 @@ pub fn run() {
                 println!("[insightforge] drafts: cleaned {cleaned} orphaned temp file(s) at startup");
             }
             app.manage(DraftsState(Arc::clone(&drafts)));
+
+            app.manage(EventLogState(event_log));
 
             // 07 号票：引用服务——不可变快照
             let references = Arc::new(ReferencesService::new(Arc::clone(&db)));
@@ -666,6 +770,7 @@ pub fn run() {
             drafts_resolve_conflict,
             drafts_cleanup,
             diagnostics_snapshot,
+            diagnostics_event_log,
             references_create,
             references_list,
             references_adopt,

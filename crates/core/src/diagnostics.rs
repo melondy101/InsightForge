@@ -4,11 +4,119 @@
 //! 以及数据库的脱敏聚合（journal 模式、已应用迁移、完整性结论、各表行数）。
 //! 绝不出现：API Key、草稿/来源正文、用户文件路径、源文件内容。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
 
 use serde::Serialize;
 
 use crate::repository::Repository;
+
+/// 结构化事件日志级别（稳定枚举，序列化用小写，便于前端/导出统一）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogLevel {
+    Trace,
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
+/// 脱敏红线：这些字段名（大小写不敏感）一旦进入日志即被替换为 `[redacted]`，
+/// 绝不记录密钥、令牌、正文、密码等。任何新增日志点都受此约束，无需逐处审查。
+pub const MUST_NOT_LOG_KEYS: &[&str] = &[
+    "apikey",
+    "api_key",
+    "token",
+    "password",
+    "secret",
+    "authorization",
+    "content",
+    "body",
+    "key",
+    "cookie",
+    "credential",
+];
+
+/// 一条结构化日志：稳定事件名 + 级别 + 已脱敏字段。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogEntry {
+    pub ts: String,
+    pub level: LogLevel,
+    pub name: String,
+    pub fields: HashMap<String, String>,
+}
+
+type Clock = Arc<dyn Fn() -> String + Send + Sync>;
+
+/// 应用内结构化事件日志：定长环形缓冲（写满丢弃最旧），用于诊断导出。
+///
+/// 与 stdout/stderr 不同，它可被用户随时取出、复制、求助；且强制脱敏，
+/// 任何含敏感字段名的条目都会被静默替换为 `[redacted]`。
+pub struct EventLog {
+    cap: usize,
+    entries: VecDeque<LogEntry>,
+    clock: Clock,
+}
+
+impl EventLog {
+    pub fn new(cap: usize) -> Self {
+        Self::with_clock(cap, Arc::new(now_rfc3339))
+    }
+
+    pub fn with_clock(cap: usize, clock: Clock) -> Self {
+        Self {
+            cap,
+            entries: VecDeque::new(),
+            clock,
+        }
+    }
+
+    /// 写入一条事件。字段先经脱敏过滤，再入环形缓冲（超容丢弃最旧）。
+    pub fn push(&mut self, level: LogLevel, name: &str, fields: &[(&str, &str)]) {
+        let mut redacted = HashMap::new();
+        for (k, v) in fields {
+            let key = (*k).to_lowercase();
+            if MUST_NOT_LOG_KEYS.contains(&key.as_str()) {
+                redacted.insert((*k).to_string(), "[redacted]".to_string());
+            } else {
+                redacted.insert((*k).to_string(), (*v).to_string());
+            }
+        }
+        self.entries.push_back(LogEntry {
+            ts: (self.clock)(),
+            level,
+            name: name.to_string(),
+            fields: redacted,
+        });
+        while self.entries.len() > self.cap {
+            self.entries.pop_front();
+        }
+    }
+
+    /// 最近 `limit` 条（新→旧），用于快照/导出。
+    pub fn recent(&self, limit: usize) -> Vec<LogEntry> {
+        self.entries.iter().rev().take(limit).cloned().collect()
+    }
+
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(&self.recent(self.entries.len())).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// 仅序列化最近 `limit` 条（新→旧），用于命令导出。
+    pub fn to_json_of_newest(&self, limit: usize) -> String {
+        serde_json::to_string(&self.recent(limit)).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+}
 
 /// 当前平台标签（如 `windows x86_64`），用于区分环境相关的故障。
 pub fn platform_label() -> String {
@@ -132,5 +240,61 @@ mod tests {
             .copied()
             .unwrap_or(0);
         assert!(draft_count >= 1, "draft table should be counted");
+    }
+
+    /// 环形缓冲：写满后丢弃最旧，长度不超过容量，且保留最新。
+    #[test]
+    fn event_log_rotates_when_full() {
+        let clock: Arc<dyn Fn() -> String + Send + Sync> =
+            Arc::new(|| "2026-01-01T00:00:00Z".to_string());
+        let mut log = EventLog::with_clock(3, clock);
+        for i in 0..5 {
+            log.push(LogLevel::Info, "tick", &[("n", &i.to_string())]);
+        }
+        assert_eq!(log.len(), 3, "log must not exceed capacity");
+        let recent = log.recent(10);
+        assert_eq!(recent.len(), 3);
+        // 最新一条应是 n=4（最旧 0、1 被丢弃）
+        assert_eq!(recent[0].fields.get("n").map(|s| s.as_str()), Some("4"));
+        // n=0、n=1 不应残留
+        assert!(!recent
+            .iter()
+            .any(|e| e.fields.get("n") == Some(&"0".to_string())));
+    }
+
+    /// 脱敏红线：包含敏感字段名的条目一律替换为 `[redacted]`，且序列化结果不含原值。
+    #[test]
+    fn event_log_redacts_sensitive_fields() {
+        let clock: Arc<dyn Fn() -> String + Send + Sync> =
+            Arc::new(|| "2026-01-01T00:00:00Z".to_string());
+        let mut log = EventLog::with_clock(10, clock);
+        log.push(
+            LogLevel::Info,
+            "draft.save",
+            &[
+                ("filename", "note.md"),
+                ("apiKey", "sk-TOPSECRETKEY"),
+                ("content", "user private body"),
+            ],
+        );
+        let entry = &log.recent(1)[0];
+        assert_eq!(entry.fields.get("filename"), Some(&"note.md".to_string()));
+        assert_eq!(
+            entry.fields.get("apiKey").map(|s| s.as_str()),
+            Some("[redacted]")
+        );
+        assert_eq!(
+            entry.fields.get("content").map(|s| s.as_str()),
+            Some("[redacted]")
+        );
+        let json = log.to_json();
+        assert!(
+            !json.contains("sk-TOPSECRETKEY"),
+            "api key must never be logged"
+        );
+        assert!(
+            !json.contains("user private body"),
+            "draft content must never be logged"
+        );
     }
 }

@@ -27,7 +27,8 @@ pub use coach::{
     CoachAction, CoachError, CoachService, CoachSession, CoachSessionState, CoachTurn,
 };
 pub use diagnostics::{
-    build_snapshot, now_rfc3339, platform_label, DatabaseDiagnostics, DiagnosticSnapshot,
+    build_snapshot, now_rfc3339, platform_label, DatabaseDiagnostics, DiagnosticSnapshot, EventLog,
+    LogEntry, LogLevel, MUST_NOT_LOG_KEYS,
 };
 pub use drafts::{Conflict, DraftFile, DraftsError, DraftsService};
 pub use egress::{
