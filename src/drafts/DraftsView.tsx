@@ -130,11 +130,9 @@ export function DraftsView() {
               <h3>{activeDraft.filename}</h3>
               <textarea
                 className="drafts-editor__textarea"
+                data-el="drafts-editor-textarea"
                 value={content}
-                onChange={(e) => {
-                  void e.target.value;
-                }}
-                readOnly
+                onChange={(e) => actions.setContent(e.target.value)}
               />
             </>
           ) : (

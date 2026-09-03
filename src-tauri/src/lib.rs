@@ -315,6 +315,26 @@ fn drafts_delete(state: State<'_, DraftsState>, filename: String) -> Result<(), 
     Ok(state.0.delete(&filename)?)
 }
 
+/// 冲突三选一：绝不静默覆盖，按用户决策显式改写或保留。
+/// `resolution` 为 `keep_local` / `adopt_external` / `save_as_copy` 之一。
+#[tauri::command]
+fn drafts_resolve_conflict(
+    state: State<'_, DraftsState>,
+    filename: String,
+    resolution: String,
+    local_content: String,
+) -> Result<insightforge_core::DraftFile, CommandError> {
+    let choice = resolution
+        .parse::<insightforge_core::drafts::ConflictResolution>()
+        .map_err(|e| CommandError {
+            code: "invalid_resolution",
+            message: e.to_string(),
+        })?;
+    Ok(state
+        .0
+        .resolve_conflict(&filename, choice, &local_content)?)
+}
+
 // ---- references.*（07 号票：证据架与不可变引用快照）----
 
 #[tauri::command]
@@ -467,10 +487,7 @@ fn coach_archive(state: State<'_, CoachState>, session_id: String) -> Result<(),
 /// - 显式提供公钥时一律优先使用（不区分 debug/release）。
 /// - 未提供时：release 构建返回 `None`（调用方据此 fail-closed panic）；
 ///   debug 构建回退到内置测试公钥，保证本地开发可运行。
-fn resolve_updater_pubkey(
-    env_value: Option<String>,
-    is_release: bool,
-) -> Option<String> {
+fn resolve_updater_pubkey(env_value: Option<String>, is_release: bool) -> Option<String> {
     match env_value {
         Some(pk) if !pk.is_empty() => Some(pk),
         _ => {
@@ -609,6 +626,7 @@ pub fn run() {
             drafts_open,
             drafts_save,
             drafts_delete,
+            drafts_resolve_conflict,
             references_create,
             references_list,
             references_adopt,
@@ -648,20 +666,32 @@ mod updater_tests {
     #[test]
     fn release_missing_pubkey_is_none_not_fallback() {
         let pk = resolve_updater_pubkey(None, true);
-        assert!(pk.is_none(), "release build must not fall back to a test key");
+        assert!(
+            pk.is_none(),
+            "release build must not fall back to a test key"
+        );
     }
 
     /// 已设置公钥时，无论 debug/release 都优先使用环境变量值。
     #[test]
     fn pubkey_env_value_wins_over_fallback() {
-        assert_eq!(resolve_updater_pubkey(Some("env-pubkey".into()), false), Some("env-pubkey".into()));
-        assert_eq!(resolve_updater_pubkey(Some("env-pubkey".into()), true), Some("env-pubkey".into()));
+        assert_eq!(
+            resolve_updater_pubkey(Some("env-pubkey".into()), false),
+            Some("env-pubkey".into())
+        );
+        assert_eq!(
+            resolve_updater_pubkey(Some("env-pubkey".into()), true),
+            Some("env-pubkey".into())
+        );
     }
 
     /// 空白公钥视为未提供，走 debug 回退 / release fail-closed。
     #[test]
     fn blank_pubkey_treated_as_missing() {
-        assert_eq!(resolve_updater_pubkey(Some("".into()), false), Some(TEST_FALLBACK.into()));
+        assert_eq!(
+            resolve_updater_pubkey(Some("".into()), false),
+            Some(TEST_FALLBACK.into())
+        );
         assert!(resolve_updater_pubkey(Some("".into()), true).is_none());
     }
 

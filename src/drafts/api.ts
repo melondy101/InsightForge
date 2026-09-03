@@ -39,6 +39,35 @@ export function toDraftsError(err: unknown): DraftsErrorShape {
   return { code: 'unknown', message: err instanceof Error ? err.message : String(err) };
 }
 
+/**
+ * Rust 将 Conflict 序列化为 `DraftsError::Conflict(message)` 中的 message 字段
+ * （camelCase JSON）。前端需完整解析，尤其是 externalContent——否则「采用外部」
+ * 将丢失可用内容。解析失败时返回 null，由调用方回退到原始 message。
+ */
+export function parseConflict(message: string): Conflict | null {
+  if (!message) return null;
+  try {
+    const value = JSON.parse(message);
+    if (
+      isRecord(value) &&
+      typeof value.message === 'string' &&
+      typeof value.localContent === 'string' &&
+      typeof value.externalContent === 'string'
+    ) {
+      return {
+        message: value.message,
+        baselineContent:
+          typeof value.baselineContent === 'string' ? value.baselineContent : '',
+        localContent: value.localContent,
+        externalContent: value.externalContent,
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   try {
     return await invoke<T>(command, args);
@@ -55,4 +84,6 @@ export const draftsApi = {
   save: (filename: string, content: string) =>
     call<DraftFile>('drafts_save', { filename, content }),
   delete: (filename: string) => call<void>('drafts_delete', { filename }),
+  resolveConflict: (filename: string, resolution: 'keep_local' | 'adopt_external' | 'save_as_copy', localContent: string) =>
+    call<DraftFile>('drafts_resolve_conflict', { filename, resolution, localContent }),
 };

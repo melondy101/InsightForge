@@ -6,7 +6,11 @@
 //! - 外部编辑器改过文件时，保存前比对基线，返回结构化 Conflict，前端三选一。
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
+
+/// 临时文件命名用的进程内计数器（与 pid 组合保证唯一，避免并发保存互相覆盖）。
+static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 use chrono::Utc;
 use sha2::{Digest, Sha256};
@@ -66,6 +70,33 @@ pub struct Conflict {
     pub baseline_content: String,
     pub local_content: String,
     pub external_content: String,
+}
+
+/// 冲突三选一的用户决策（绝不静默覆盖）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConflictResolution {
+    /// 保留本地编辑：用内存中的本地内容覆盖外部改动。
+    KeepLocal,
+    /// 采用外部版本：丢弃本地编辑，以外部文件为准并更新基线。
+    AdoptExternal,
+    /// 另存副本：本地内容写入新文件，原外部文件不动。
+    SaveAsCopy,
+}
+
+impl std::str::FromStr for ConflictResolution {
+    type Err = DraftsError;
+
+    /// 由前端传来的稳定字符串解析；非法值显式报错，不静默回退。
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "keep_local" => Ok(ConflictResolution::KeepLocal),
+            "adopt_external" => Ok(ConflictResolution::AdoptExternal),
+            "save_as_copy" => Ok(ConflictResolution::SaveAsCopy),
+            other => Err(DraftsError::InvalidName(format!(
+                "unknown conflict resolution: {other}"
+            ))),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -206,37 +237,7 @@ impl DraftsService {
             }
         }
 
-        // 原子替换
-        let temp_path = path.with_extension("md.tmp");
-        std::fs::write(&temp_path, content)?;
-        // flush + fsync
-        if let Ok(f) = std::fs::File::options().write(true).open(&temp_path) {
-            let _ = f.sync_all();
-        }
-
-        #[cfg(windows)]
-        unsafe {
-            use std::os::windows::prelude::*;
-            let path_w: Vec<u16> = path.as_os_str().encode_wide().collect();
-            let temp_w: Vec<u16> = temp_path.as_os_str().encode_wide().collect();
-            let result = windows_sys::Win32::Storage::FileSystem::ReplaceFileW(
-                path_w.as_ptr(),
-                temp_w.as_ptr(),
-                std::ptr::null(),
-                0,
-                std::ptr::null(),
-                std::ptr::null(),
-            );
-            if result == 0 {
-                let err = std::io::Error::last_os_error();
-                let _ = std::fs::remove_file(&temp_path);
-                return Err(DraftsError::Io(err));
-            }
-        }
-        #[cfg(not(windows))]
-        {
-            std::fs::rename(&temp_path, &path)?;
-        }
+        self.atomic_write(&path, content)?;
 
         let new_baseline = self.read_baseline(&path)?;
         let now = now_iso();
@@ -256,6 +257,122 @@ impl DraftsService {
         };
         self.upsert_draft(&draft)?;
         Ok(draft)
+    }
+
+    /// 冲突三选一：绝不静默覆盖，按用户决策显式改写或保留。
+    ///
+    /// - `KeepLocal`：用内存中的本地内容覆盖外部改动，并更新基线。
+    /// - `AdoptExternal`：丢弃本地编辑，以当前外部文件为准更新基线（文件不动）。
+    /// - `SaveAsCopy`：本地内容写入新文件，原外部文件不动；返回新草稿。
+    pub fn resolve_conflict(
+        &self,
+        filename: &str,
+        resolution: ConflictResolution,
+        local_content: &str,
+    ) -> Result<DraftFile, DraftsError> {
+        self.ensure_directory()?;
+        let path = self.drafts_dir.join(filename);
+        if !path.exists() {
+            return Err(DraftsError::NotFound(filename.to_string()));
+        }
+        match resolution {
+            ConflictResolution::KeepLocal => {
+                self.atomic_write(&path, local_content)?;
+                self.open(filename)
+            }
+            ConflictResolution::AdoptExternal => {
+                // 外部文件即真相，仅以当前文件刷新基线
+                self.open(filename)
+            }
+            ConflictResolution::SaveAsCopy => {
+                let copy_name = self.unique_copy_name(filename)?;
+                let copy_path = self.drafts_dir.join(&copy_name);
+                self.atomic_write(&copy_path, local_content)?;
+                self.open(&copy_name)
+            }
+        }
+    }
+
+    /// 原子写入：唯一临时文件 → flush/fsync → 平台替换（Windows ReplaceFileW / Unix rename）。
+    /// 不更新数据库基线；调用方负责刷新（`open` 会重读基线）。
+    fn atomic_write(&self, path: &Path, content: &str) -> Result<(), DraftsError> {
+        let temp_path = self.unique_temp_for(path)?;
+        std::fs::write(&temp_path, content)?;
+        // flush + fsync，确保断电/崩溃前已落盘
+        if let Ok(f) = std::fs::File::options().write(true).open(&temp_path) {
+            let _ = f.sync_all();
+        }
+
+        #[cfg(windows)]
+        unsafe {
+            use std::os::windows::prelude::*;
+            // encode_wide() 不含 NUL 终结符；W-API（ReplaceFileW）需要以 0 结尾的宽字符串，
+            // 否则会读到越界垃圾并返回 ERROR_INVALID_NAME。这是 save() 既有实现中未被 Windows 测试暴露的缺陷。
+            let mut path_w: Vec<u16> = path.as_os_str().encode_wide().collect();
+            path_w.push(0);
+            let mut temp_w: Vec<u16> = temp_path.as_os_str().encode_wide().collect();
+            temp_w.push(0);
+            // ReplaceFileW 要求被替换文件已存在；新文件（如冲突另存的副本）走 rename。
+            let result = if path.exists() {
+                windows_sys::Win32::Storage::FileSystem::ReplaceFileW(
+                    path_w.as_ptr(),
+                    temp_w.as_ptr(),
+                    std::ptr::null(),
+                    0,
+                    std::ptr::null(),
+                    std::ptr::null(),
+                )
+            } else {
+                // 回退到 rename：新文件不存在时 ReplaceFileW 会报 ERROR_FILE_NOT_FOUND。
+                match std::fs::rename(&temp_path, path) {
+                    Ok(()) => 1,
+                    Err(e) => {
+                        let _ = std::fs::remove_file(&temp_path);
+                        return Err(DraftsError::Io(e));
+                    }
+                }
+            };
+            if result == 0 {
+                let err = std::io::Error::last_os_error();
+                let _ = std::fs::remove_file(&temp_path);
+                return Err(DraftsError::Io(err));
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            std::fs::rename(&temp_path, path)?;
+        }
+        Ok(())
+    }
+
+    /// 为 `path` 生成一个进程内唯一的临时文件名（避免并发保存互相覆盖，
+    /// 也便于崩溃后清理残留）。
+    fn unique_temp_for(&self, path: &Path) -> Result<PathBuf, DraftsError> {
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "draft.md".to_string());
+        let n = TEMP_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let pid = std::process::id();
+        Ok(path.with_file_name(format!("{name}.{pid}-{n}.tmp")))
+    }
+
+    /// 为冲突另存副本生成不重名的新文件名：`note.conflict.<nanos>.md`。
+    fn unique_copy_name(&self, filename: &str) -> Result<String, DraftsError> {
+        let path = Path::new(filename);
+        let stem = path
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "draft".to_string());
+        let ext = path
+            .extension()
+            .map(|e| e.to_string_lossy().to_string())
+            .unwrap_or_else(|| "md".to_string());
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        Ok(format!("{stem}.conflict.{nanos}.{ext}"))
     }
 
     /// 删除草稿文件。
@@ -447,5 +564,81 @@ mod tests {
         assert!(!d.id.is_empty());
         assert_eq!(d.filename, "fresh.md");
         assert!(d.path.ends_with("fresh.md"));
+    }
+
+    /// 模拟外部编辑后，resolve_conflict(KeepLocal) 必须用本地内容覆盖外部改动。
+    #[test]
+    fn resolve_keep_local_overwrites_external_changes() {
+        let (_repo, service, _dir) = setup_service();
+        service.create("note.md").unwrap();
+        service.save("note.md", "v1-local").unwrap();
+
+        // 外部进程改动了文件
+        let path = service.drafts_dir.join("note.md");
+        std::fs::write(&path, "EXTERNAL-CHANGES").unwrap();
+
+        let resolved = service
+            .resolve_conflict("note.md", ConflictResolution::KeepLocal, "v2-local")
+            .expect("keep_local should succeed");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "v2-local");
+        // 基线已更新为本地版本
+        let baseline = service.find_draft("note.md").unwrap().unwrap();
+        assert_eq!(resolved.baseline_hash, baseline.baseline_hash);
+    }
+
+    /// resolve_conflict(AdoptExternal) 保留外部文件，仅刷新基线（丢弃本地编辑）。
+    #[test]
+    fn resolve_adopt_external_keeps_external_file() {
+        let (_repo, service, _dir) = setup_service();
+        service.create("note.md").unwrap();
+        service.save("note.md", "v1-local").unwrap();
+
+        let path = service.drafts_dir.join("note.md");
+        std::fs::write(&path, "EXTERNAL-CHANGES").unwrap();
+
+        service
+            .resolve_conflict("note.md", ConflictResolution::AdoptExternal, "v2-local")
+            .expect("adopt_external should succeed");
+        // 文件保持外部内容，未写入本地
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "EXTERNAL-CHANGES");
+        let baseline = service.find_draft("note.md").unwrap().unwrap();
+        assert_eq!(baseline.baseline_size, "EXTERNAL-CHANGES".len() as i64);
+    }
+
+    /// resolve_conflict(SaveAsCopy) 另存本地内容为副本，原外部文件不动。
+    #[test]
+    fn resolve_save_as_copy_creates_new_draft_keeps_original() {
+        let (_repo, service, _dir) = setup_service();
+        service.create("note.md").unwrap();
+        service.save("note.md", "v1-local").unwrap();
+
+        let path = service.drafts_dir.join("note.md");
+        std::fs::write(&path, "EXTERNAL-CHANGES").unwrap();
+
+        let copy = service
+            .resolve_conflict("note.md", ConflictResolution::SaveAsCopy, "v2-local")
+            .expect("save_as_copy should succeed");
+        assert_ne!(copy.filename, "note.md");
+        assert!(copy.filename.contains("conflict"));
+        // 原文件保持外部内容
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "EXTERNAL-CHANGES");
+        // 副本内容为本地编辑
+        let copy_path = service.drafts_dir.join(&copy.filename);
+        assert_eq!(std::fs::read_to_string(&copy_path).unwrap(), "v2-local");
+        // 副本出现在列表中
+        let names: Vec<String> = service
+            .list()
+            .unwrap()
+            .into_iter()
+            .map(|d| d.filename)
+            .collect();
+        assert!(names.contains(&copy.filename));
+    }
+
+    /// 非法决策字符串必须显式报错，不得静默回退到某个默认。
+    #[test]
+    fn conflict_resolution_rejects_unknown_choice() {
+        assert!("nonsense".parse::<ConflictResolution>().is_err());
+        assert!("keep_local".parse::<ConflictResolution>().is_ok());
     }
 }

@@ -64,6 +64,7 @@ describe('DraftsModelContext', () => {
         delete: vi.fn(),
         refresh: vi.fn(),
         resolveConflict: vi.fn(),
+        setContent: vi.fn(),
         dismissError: vi.fn(),
       },
     };

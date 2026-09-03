@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { draftsApi, type DraftFile, type DraftsErrorShape, toDraftsError } from './api';
+import { draftsApi, type DraftFile, type DraftsErrorShape, toDraftsError, parseConflict } from './api';
 
 export type DraftsViewState = 'idle' | 'loading' | 'conflict';
 
@@ -18,6 +18,7 @@ export interface DraftsModel {
     delete: () => Promise<void>;
     refresh: () => Promise<void>;
     resolveConflict: (choice: 'local' | 'external' | 'saveAs') => void;
+    setContent: (value: string) => void;
     dismissError: () => void;
   };
 }
@@ -95,18 +96,20 @@ export function useDrafts() {
     } catch (err) {
       const shape = toDraftsError(err);
       if (shape.code === 'conflict') {
+        // Rust 将 Conflict 序列化为 message 字段（camelCase JSON），此处完整解析，
+        // 绝不丢弃 externalContent，否则「采用外部」将无内容可用。
+        const parsed = parseConflict(shape.message);
         setConflict({
-          message: shape.message,
-          baseline: '',
-          local: content,
-          external: '',
+          message: parsed?.message ?? shape.message,
+          baseline: parsed?.baselineContent ?? '',
+          local: parsed?.localContent ?? content,
+          external: parsed?.externalContent ?? '',
         });
         setStatus('conflict');
       } else {
         setError(shape);
+        setStatus('idle');
       }
-    } finally {
-      setStatus('idle');
     }
   }, [activeDraft, content, refresh]);
 
@@ -128,12 +131,44 @@ export function useDrafts() {
   }, [activeDraft, refresh]);
 
   const resolveConflict = useCallback(
-    () => {
-      setConflict(null);
-      setStatus('idle');
+    async (choice: 'local' | 'external' | 'saveAs') => {
+      if (!conflict || !activeDraft) {
+        setConflict(null);
+        setStatus('idle');
+        return;
+      }
+      const resolution =
+        choice === 'local'
+          ? 'keep_local'
+          : choice === 'external'
+            ? 'adopt_external'
+            : 'save_as_copy';
+      setStatus('loading');
+      try {
+        // 「保留本地 / 另存副本」以用户在保存时提交的本地内容为准（已随冲突捕获，
+        // 不依赖可能滞后的实时 content）；「采用外部」则由后端以磁盘文件为准。
+        const local = conflict.local || content;
+        const updated = await draftsApi.resolveConflict(
+          activeDraft.filename,
+          resolution,
+          local,
+        );
+        setActiveDraft(updated);
+        setContent(local);
+        await refresh();
+      } catch (err) {
+        setError(toDraftsError(err));
+      } finally {
+        setConflict(null);
+        setStatus('idle');
+      }
     },
-    [],
+    [conflict, activeDraft, content, refresh],
   );
+
+  const setEditorContent = useCallback((value: string) => {
+    setContent(value);
+  }, []);
 
   const actions = useMemo(
     () => ({
@@ -143,9 +178,10 @@ export function useDrafts() {
       delete: delete_,
       refresh,
       resolveConflict,
+      setContent: setEditorContent,
       dismissError: () => setError(null),
     }),
-    [create, delete_, open, refresh, save, resolveConflict],
+    [create, delete_, open, refresh, save, resolveConflict, setEditorContent],
   );
 
   return {
