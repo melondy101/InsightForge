@@ -6,6 +6,7 @@
 
 pub mod chunking;
 pub mod coach;
+pub mod diagnostics;
 pub mod drafts;
 pub mod egress;
 pub mod executor;
@@ -24,6 +25,9 @@ pub mod thoughts;
 pub use chunking::{chunk_markdown, chunk_plain, Chunk, ChunkConfig, DEFAULT_MAX_CHUNK_CHARS};
 pub use coach::{
     CoachAction, CoachError, CoachService, CoachSession, CoachSessionState, CoachTurn,
+};
+pub use diagnostics::{
+    build_snapshot, now_rfc3339, platform_label, DatabaseDiagnostics, DiagnosticSnapshot,
 };
 pub use drafts::{Conflict, DraftFile, DraftsError, DraftsService};
 pub use egress::{

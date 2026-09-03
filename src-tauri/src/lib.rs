@@ -8,6 +8,7 @@ use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
 use insightforge_core::coach::CoachTurnInput;
+use insightforge_core::diagnostics::DiagnosticSnapshot;
 use insightforge_core::egress::{
     AuditLogger, AuditRecord, EgressBundle, EgressBundleBuilder, EgressError,
 };
@@ -16,8 +17,8 @@ use insightforge_core::thoughts::{ThoughtCard, ThoughtsError, ThoughtsService, U
 use insightforge_core::{
     AiSampleReply, AiSettings, CoachError, CoachService, CoachSession, CoachTurn, DraftsError,
     DraftsService, EventSink, KeyringStore, ReferencesError, ReferencesService, Repository,
-    SearchError, SearchService, Settings, SettingsError, SourceEvent, SourceSummary, Sources,
-    SourcesError, TestConnectionReport, UreqAiHttpClient,
+    RepositoryError, SearchError, SearchService, Settings, SettingsError, SourceEvent,
+    SourceSummary, Sources, SourcesError, TestConnectionReport, UreqAiHttpClient,
 };
 
 /// 启动时打开的数据库，经 Tauri managed state 注入后续命令。
@@ -122,6 +123,15 @@ impl From<CoachError> for CommandError {
     fn from(error: CoachError) -> Self {
         Self {
             code: "coach_error",
+            message: error.to_string(),
+        }
+    }
+}
+
+impl From<RepositoryError> for CommandError {
+    fn from(error: RepositoryError) -> Self {
+        Self {
+            code: "repository_error",
             message: error.to_string(),
         }
     }
@@ -320,6 +330,21 @@ fn drafts_delete(state: State<'_, DraftsState>, filename: String) -> Result<(), 
 #[tauri::command]
 fn drafts_cleanup(state: State<'_, DraftsState>) -> Result<usize, CommandError> {
     Ok(state.0.cleanup_stale_temp_files()?)
+}
+
+/// 生成脱敏诊断快照（版本 / 平台 / SQLite 版本 / 数据库聚合指标），
+/// 不含任何 API Key、草稿或来源正文、用户文件路径——可安全复制粘贴求助。
+#[tauri::command]
+fn diagnostics_snapshot(
+    state: State<'_, WorkspaceDb>,
+    version: String,
+) -> Result<DiagnosticSnapshot, CommandError> {
+    let generated_at = insightforge_core::diagnostics::now_rfc3339();
+    Ok(insightforge_core::diagnostics::build_snapshot(
+        &state.0,
+        &version,
+        &generated_at,
+    )?)
 }
 
 /// 冲突三选一：绝不静默覆盖，按用户决策显式改写或保留。
@@ -640,6 +665,7 @@ pub fn run() {
             drafts_delete,
             drafts_resolve_conflict,
             drafts_cleanup,
+            diagnostics_snapshot,
             references_create,
             references_list,
             references_adopt,

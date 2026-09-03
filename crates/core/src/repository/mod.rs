@@ -120,7 +120,10 @@ fn backup_corrupt(path: &Path) -> Result<(), RepositoryError> {
     for suffix in ["-wal", "-shm"] {
         let aux = path.with_file_name(format!("{base}{suffix}"));
         if aux.exists() {
-            let _ = std::fs::copy(&aux, path.with_file_name(format!("{base}{suffix}.corrupt.bak")));
+            let _ = std::fs::copy(
+                &aux,
+                path.with_file_name(format!("{base}{suffix}.corrupt.bak")),
+            );
         }
     }
     Ok(())
@@ -280,6 +283,45 @@ impl Repository {
             Ok(versions)
         })
     }
+
+    /// 运行 `PRAGMA integrity_check` 并给出单行结论：全为 `ok` 则返回 `"ok"`，
+    /// 否则返回首个异常行的文本（供诊断快照呈现，绝不返回库内容本身）。
+    pub fn integrity_report(&self) -> Result<String, RepositoryError> {
+        self.read(|conn| {
+            let mut stmt = conn.prepare("PRAGMA integrity_check")?;
+            let mut rows = stmt.query([])?;
+            while let Some(row) = rows.next()? {
+                let val: String = row.get(0)?;
+                if val != "ok" {
+                    return Ok(val);
+                }
+            }
+            Ok("ok".to_string())
+        })
+    }
+
+    /// 统计用户表（排除 `sqlite_` 内部表）的行数，用于诊断快照的脱敏概览。
+    pub fn table_counts(&self) -> Result<std::collections::HashMap<String, i64>, RepositoryError> {
+        self.read(|conn| {
+            let mut tables = Vec::new();
+            let mut stmt = conn.prepare(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+            )?;
+            let mut rows = stmt.query([])?;
+            while let Some(row) = rows.next()? {
+                tables.push(row.get::<_, String>(0)?);
+            }
+            let mut counts = std::collections::HashMap::new();
+            for table in tables {
+                let n: i64 =
+                    conn.query_row(&format!("SELECT COUNT(*) FROM \"{table}\""), [], |row| {
+                        row.get(0)
+                    })?;
+                counts.insert(table, n);
+            }
+            Ok(counts)
+        })
+    }
 }
 
 /// 在一个 IMMEDIATE 事务里执行写闭包：成功提交，失败回滚。
@@ -328,7 +370,10 @@ mod tests {
 
         let recovered = Repository::recover_if_corrupt(&path).unwrap();
         assert!(!recovered, "healthy db must report no recovery");
-        assert!(!backup.exists(), "no .corrupt.bak must be created for healthy db");
+        assert!(
+            !backup.exists(),
+            "no .corrupt.bak must be created for healthy db"
+        );
     }
 
     #[test]
@@ -341,12 +386,21 @@ mod tests {
 
         let recovered = Repository::recover_if_corrupt(&path).unwrap();
         assert!(recovered, "corrupt db must be reported as recovered");
-        assert!(backup.exists(), "corrupt db must be backed up to .corrupt.bak");
-        assert!(!path.exists(), "corrupt db file must be removed before rebuild");
+        assert!(
+            backup.exists(),
+            "corrupt db must be backed up to .corrupt.bak"
+        );
+        assert!(
+            !path.exists(),
+            "corrupt db file must be removed before rebuild"
+        );
 
         // 重建后 open 必须成功（空库安全降级），且可被正常写入
         let repo = Repository::open(&path).unwrap();
         let applied = repo.applied_migrations().unwrap();
-        assert!(!applied.is_empty(), "rebuilt db should have migrations applied");
+        assert!(
+            !applied.is_empty(),
+            "rebuilt db should have migrations applied"
+        );
     }
 }
