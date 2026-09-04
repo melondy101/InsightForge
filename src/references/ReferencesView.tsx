@@ -18,16 +18,13 @@ export function ReferencesView({ draftId }: { draftId: string }) {
       )}
       <ul className="references-view__list" data-el="references-list">
         {references.map((ref) => (
-          <li key={ref.id} className="references-view__item" data-el="reference-item">
-            <div className="references-view__meta">
-              <span>{ref.sourceName}</span>
-              <span>{ref.relPath}</span>
-              <span>
-                {ref.startLine}-{ref.endLine}
-              </span>
+          <li key={ref.id} className="evi" data-el="reference-item">
+            <div className="evi__head">
+              <span className="evi__src">{ref.sourceName}</span>
+              <span className="evi__path">{ref.relPath}:{ref.startLine}-{ref.endLine}</span>
             </div>
-            <p className="references-view__snippet">{ref.snippet}</p>
-            <div className="references-view__actions">
+            <p className="evi__snip">{ref.snippet}</p>
+            <div className="evi__foot">
               {!ref.adopted && (
                 <button type="button" onClick={() => actions.adopt(ref.id)}>
                   {t('references.adopt')}

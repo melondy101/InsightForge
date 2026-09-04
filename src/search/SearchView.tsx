@@ -199,18 +199,18 @@ export function SearchView({ sourceId, sourceName }: SearchViewProps) {
         ) : (
           <ul>
             {results.map((card) => (
-              <li className="search__card" key={card.fragmentId} data-el="search-card">
-                <div className="search__card-header">
-                  <strong data-el="search-card-source">{card.sourceName}</strong>
-                  <span data-el="search-card-path">{card.relPath}</span>
+              <li className="evi" key={card.fragmentId} data-el="search-card">
+                <div className="evi__head">
+                  <strong data-el="search-card-source" className="evi__src">{card.sourceName}</strong>
+                  <span data-el="search-card-path" className="evi__path">{card.relPath}</span>
                 </div>
                 <p
-                  className="search__card-snippet"
+                  className="evi__snip"
                   data-el="search-card-snippet"
                   dangerouslySetInnerHTML={{ __html: card.snippet }}
                 />
-                <div className="search__card-footer">
-                  <span data-el="search-card-rank">
+                <div className="evi__foot">
+                  <span data-el="search-card-rank" className="evi__rank">
                     {t('search.rank', { bm25: card.bm25.toFixed(2) })}
                   </span>
                   <button
