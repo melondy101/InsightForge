@@ -4,6 +4,9 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import './i18n';
 import './styles.css';
+import { applyTheme, getTheme } from './ui/theme';
+
+applyTheme(getTheme());
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

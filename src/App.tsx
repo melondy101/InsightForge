@@ -17,6 +17,7 @@ import {
   IconSource, IconSearch, IconSettings, IconEgress,
   IconSun, IconMoon,
 } from './ui/icons';
+import { getTheme, setTheme } from './ui/theme';
 
 type View =
   | 'workspace'
@@ -39,14 +40,14 @@ function BrandMark() {
 }
 
 function ThemeToggle() {
-  const [isDark, setIsDark] = useState(true);
+  const isDark = getTheme() === 'dark';
   return (
     <button
       type="button"
       className="iconbtn"
       data-el="theme-toggle"
       aria-label={isDark ? 'Switch to light' : 'Switch to dark'}
-      onClick={() => setIsDark(v => !v)}
+      onClick={() => setTheme(isDark ? 'light' : 'dark')}
     >
       {isDark ? <IconSun /> : <IconMoon />}
     </button>
