@@ -8,6 +8,7 @@ import { EditorView, keymap, placeholder } from '@codemirror/view';
 import { createEditorAdapter, type EditorAdapter } from '../editor/adapter';
 import { headingPathAt, paragraphIndexAt } from '../editor/context';
 import { applyDividerDrag, clampPaneWidths, type DividerSide, type PaneWidths } from './layout';
+import { foundryTheme } from '../editor/theme';
 
 declare global {
   interface Window {
@@ -79,7 +80,7 @@ export function WorkspaceView() {
         <section
           className="ws-pane ws-pane--left"
           data-el="workspace-pane-left"
-          style={{ width: widths ? `${widths.left}px` : undefined }}
+          style={{ width: widths ? widths.left + 'px' : undefined }}
         >
           <h3 className="ws-pane__title">{t('workspace.paneLeft')}</h3>
         </section>
@@ -93,7 +94,7 @@ export function WorkspaceView() {
         <section
           className="ws-pane ws-pane--center"
           data-el="workspace-pane-center"
-          style={{ width: widths ? `${widths.center}px` : undefined }}
+          style={{ width: widths ? widths.center + 'px' : undefined }}
         >
           <EditorPane />
         </section>
@@ -107,7 +108,7 @@ export function WorkspaceView() {
         <section
           className="ws-pane ws-pane--right"
           data-el="workspace-pane-right"
-          style={{ width: widths ? `${widths.right}px` : undefined }}
+          style={{ width: widths ? widths.right + 'px' : undefined }}
         >
           <h3 className="ws-pane__title">{t('workspace.paneRight')}</h3>
         </section>
@@ -152,6 +153,7 @@ function EditorPane() {
     }
     const adapter = createEditorAdapter({
       extensions: [
+        foundryTheme,
         history(),
         keymap.of([...markdownKeymap, ...defaultKeymap, ...historyKeymap]),
         markdown(),
