@@ -25,6 +25,8 @@ pub const AI_BASE_URL_KEY: &str = "ai.base_url";
 pub const AI_MODEL_KEY: &str = "ai.model";
 /// app_setting 表里 AI 总开关的键（值 "true"/"false"；缺省 = 关闭）。
 pub const AI_ENABLED_KEY: &str = "ai.enabled";
+/// app_setting 表里本机设备身份的键（ADR 0002：首次读取时生成并持久化）。
+pub const DEVICE_ID_KEY: &str = "device.id";
 
 /// 连接测试用的探测提示词（出站最小化：max_tokens = 1）。
 const PROBE_PROMPT: &str = "ping";
@@ -161,6 +163,20 @@ impl Settings {
             secrets,
             http,
         }
+    }
+
+    /// 本机设备身份（ADR 0002）：首次调用生成 UUIDv4 并落库，此后跨重启复用。
+    ///
+    /// 「读 → 缺失则写 → 回读」整体在一个 `BEGIN IMMEDIATE` 事务内完成，
+    /// 因此即便两个调用方同时首次读取，最终也只有一个身份会留在库里。
+    pub fn device_id(&self) -> Result<String, SettingsError> {
+        let id = self.repo.write(|conn| {
+            if get_setting(conn, DEVICE_ID_KEY)?.is_none() {
+                set_setting(conn, DEVICE_ID_KEY, &uuid::Uuid::new_v4().to_string())?;
+            }
+            get_setting(conn, DEVICE_ID_KEY)?.ok_or(rusqlite::Error::QueryReturnedNoRows)
+        })?;
+        Ok(id)
     }
 
     /// 读取 AI 设置快照（全新库：未配置、开关关闭）。

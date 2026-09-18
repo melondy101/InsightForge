@@ -33,7 +33,8 @@ pub struct Migration {
 ///
 /// 编号预分配：02 号票 `0001–0009`（已用 `0001–0003`），08 号票经主控授权
 /// 使用 `0004`，06 号票 `0010–0019`（`0010–0013` 已用），09 号票 `0020–0029`；
-/// 10 号票（陪练）经主控授权使用 `0014–0015`；未用完的编号留空。
+/// 10 号票（陪练）经主控授权使用 `0014–0015`；ADR 0002（互通契约）使用 `0016`；
+/// 未用完的编号留空。
 pub const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 1,
@@ -192,6 +193,25 @@ CREATE INDEX idx_coach_session_draft ON coach_session(draft_id)",
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 CREATE INDEX idx_coach_turn_session ON coach_turn(session_id)",
+    },
+    // ADR 0002：互通契约的判序列。rev = 该逻辑行在本设备上的修订序号（单调递增），
+    // origin_device = 最后一次写入它的设备身份。两者共同替代「本机路径 / 时间戳」
+    // 作为跨设备比较依据；缺省值让既有行成为「同步基线上的第 0 版」。
+    Migration {
+        version: 16,
+        name: "add_sync_columns_to_author_assets",
+        sql: "ALTER TABLE draft ADD COLUMN rev INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE draft ADD COLUMN origin_device TEXT;
+ALTER TABLE draft_reference ADD COLUMN rev INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE draft_reference ADD COLUMN origin_device TEXT;
+ALTER TABLE thought_card ADD COLUMN rev INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE thought_card ADD COLUMN origin_device TEXT;
+ALTER TABLE coach_session ADD COLUMN rev INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE coach_session ADD COLUMN origin_device TEXT;
+ALTER TABLE coach_turn ADD COLUMN rev INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE coach_turn ADD COLUMN origin_device TEXT;
+ALTER TABLE ai_call_audit ADD COLUMN rev INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE ai_call_audit ADD COLUMN origin_device TEXT",
     },
 ];
 
