@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react';
 
 import { markdownToWeChatHtml, markdownToPlainText } from './clipboard';
+import { exportApi } from './api';
+import { toCommandError } from '../native/command-error';
 
 export interface ClipboardExportModel {
   exporting: boolean;
@@ -24,24 +26,10 @@ export function useClipboardExport(): ClipboardExportModel {
     setError(null);
 
     try {
-      // Generate WeChat-compatible HTML
       const html = await markdownToWeChatHtml(markdown, { title, accentColor });
-
-      // Generate plain text fallback
-      const plainText = markdownToPlainText(markdown);
-
-      // Write to clipboard via Tauri command
-      if (window.__TAURI__) {
-        await window.__TAURI__.invoke('clipboard_write_html', { html });
-      }
-
-      // Also write plain text to clipboard (as fallback)
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(plainText);
-      }
+      await exportApi.writeClipboard({ html, text: markdownToPlainText(markdown) });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Clipboard export failed';
-      setError(message);
+      setError(toCommandError(err).message);
     } finally {
       setExporting(false);
     }

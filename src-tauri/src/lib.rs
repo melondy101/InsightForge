@@ -532,6 +532,23 @@ fn coach_archive(state: State<'_, CoachState>, session_id: String) -> Result<(),
     Ok(state.0.archive(&session_id)?)
 }
 
+// ---- export.*（13 号票：公众号剪贴板导出）----
+
+/// 同批写入 text/html 与 text/plain：分两次写会让纯文本覆盖富文本。
+#[tauri::command]
+fn export_write_clipboard(
+    clipboard: State<'_, tauri_plugin_clipboard::Clipboard>,
+    html: String,
+    text: String,
+) -> Result<(), CommandError> {
+    clipboard
+        .write_html_and_text(html, text)
+        .map_err(|message| CommandError {
+            code: "clipboard_write_failed",
+            message,
+        })
+}
+
 /// Updater 签名公钥解析（纯函数，注入 env 值与是否 release，便于确定性测试）。
 ///
 /// - 显式提供公钥时一律优先使用（不区分 debug/release）。
@@ -787,7 +804,8 @@ pub fn run() {
             coach_respond,
             coach_get_session,
             coach_mark_helpful,
-            coach_archive
+            coach_archive,
+            export_write_clipboard
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
