@@ -33,7 +33,7 @@ pub struct Migration {
 ///
 /// 编号预分配：02 号票 `0001–0009`（已用 `0001–0003`），08 号票经主控授权
 /// 使用 `0004`，06 号票 `0010–0019`（`0010–0013` 已用），09 号票 `0020–0029`；
-/// 10 号票（陪练）经主控授权使用 `0014–0015`；ADR 0002（互通契约）使用 `0016`；
+/// 10 号票（陪练）经主控授权使用 `0014–0015`；ADR 0002（互通契约）使用 `0016–0017`；
 /// 未用完的编号留空。
 pub const MIGRATIONS: &[Migration] = &[
     Migration {
@@ -212,6 +212,68 @@ ALTER TABLE coach_turn ADD COLUMN rev INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE coach_turn ADD COLUMN origin_device TEXT;
 ALTER TABLE ai_call_audit ADD COLUMN rev INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE ai_call_audit ADD COLUMN origin_device TEXT",
+    },
+    // ADR 0002：修订号的打点由存储层统一负责——12 个领域服务写路径、未来的同步入站
+    // 应用、以及任何一条直连 SQL 都共享同一规则，漏写一处就会让两台设备对「谁更新」
+    // 产生分歧，而这正是同步最贵的故障。
+    //
+    // 规则：
+    // - 本机写入（不显式声明 rev）→ rev 递增 1，origin_device 记为本机身份；
+    //   `WHEN NEW.rev = OLD.rev` 既是「调用方没有自己动过 rev」的判据，
+    //   也让触发器自身的第二次 UPDATE 不会再触发（与 recursive_triggers 取值无关）。
+    // - 入站应用远端修订（显式 SET rev = 对方声明的值）→ NEW.rev ≠ OLD.rev，
+    //   触发器不介入，原样落地。
+    Migration {
+        version: 17,
+        name: "add_revision_triggers_to_author_assets",
+        sql: "CREATE TRIGGER trg_draft_rev_on_insert AFTER INSERT ON draft WHEN NEW.rev = 0
+BEGIN
+    UPDATE draft SET rev = 1, origin_device = (SELECT value FROM app_setting WHERE key = 'device.id') WHERE id = NEW.id;
+END;
+CREATE TRIGGER trg_draft_rev_on_update AFTER UPDATE ON draft WHEN NEW.rev = OLD.rev
+BEGIN
+    UPDATE draft SET rev = OLD.rev + 1, origin_device = (SELECT value FROM app_setting WHERE key = 'device.id') WHERE id = OLD.id;
+END;
+CREATE TRIGGER trg_draft_reference_rev_on_insert AFTER INSERT ON draft_reference WHEN NEW.rev = 0
+BEGIN
+    UPDATE draft_reference SET rev = 1, origin_device = (SELECT value FROM app_setting WHERE key = 'device.id') WHERE id = NEW.id;
+END;
+CREATE TRIGGER trg_draft_reference_rev_on_update AFTER UPDATE ON draft_reference WHEN NEW.rev = OLD.rev
+BEGIN
+    UPDATE draft_reference SET rev = OLD.rev + 1, origin_device = (SELECT value FROM app_setting WHERE key = 'device.id') WHERE id = OLD.id;
+END;
+CREATE TRIGGER trg_thought_card_rev_on_insert AFTER INSERT ON thought_card WHEN NEW.rev = 0
+BEGIN
+    UPDATE thought_card SET rev = 1, origin_device = (SELECT value FROM app_setting WHERE key = 'device.id') WHERE id = NEW.id;
+END;
+CREATE TRIGGER trg_thought_card_rev_on_update AFTER UPDATE ON thought_card WHEN NEW.rev = OLD.rev
+BEGIN
+    UPDATE thought_card SET rev = OLD.rev + 1, origin_device = (SELECT value FROM app_setting WHERE key = 'device.id') WHERE id = OLD.id;
+END;
+CREATE TRIGGER trg_coach_session_rev_on_insert AFTER INSERT ON coach_session WHEN NEW.rev = 0
+BEGIN
+    UPDATE coach_session SET rev = 1, origin_device = (SELECT value FROM app_setting WHERE key = 'device.id') WHERE id = NEW.id;
+END;
+CREATE TRIGGER trg_coach_session_rev_on_update AFTER UPDATE ON coach_session WHEN NEW.rev = OLD.rev
+BEGIN
+    UPDATE coach_session SET rev = OLD.rev + 1, origin_device = (SELECT value FROM app_setting WHERE key = 'device.id') WHERE id = OLD.id;
+END;
+CREATE TRIGGER trg_coach_turn_rev_on_insert AFTER INSERT ON coach_turn WHEN NEW.rev = 0
+BEGIN
+    UPDATE coach_turn SET rev = 1, origin_device = (SELECT value FROM app_setting WHERE key = 'device.id') WHERE id = NEW.id;
+END;
+CREATE TRIGGER trg_coach_turn_rev_on_update AFTER UPDATE ON coach_turn WHEN NEW.rev = OLD.rev
+BEGIN
+    UPDATE coach_turn SET rev = OLD.rev + 1, origin_device = (SELECT value FROM app_setting WHERE key = 'device.id') WHERE id = OLD.id;
+END;
+CREATE TRIGGER trg_ai_call_audit_rev_on_insert AFTER INSERT ON ai_call_audit WHEN NEW.rev = 0
+BEGIN
+    UPDATE ai_call_audit SET rev = 1, origin_device = (SELECT value FROM app_setting WHERE key = 'device.id') WHERE id = NEW.id;
+END;
+CREATE TRIGGER trg_ai_call_audit_rev_on_update AFTER UPDATE ON ai_call_audit WHEN NEW.rev = OLD.rev
+BEGIN
+    UPDATE ai_call_audit SET rev = OLD.rev + 1, origin_device = (SELECT value FROM app_setting WHERE key = 'device.id') WHERE id = OLD.id;
+END",
     },
 ];
 

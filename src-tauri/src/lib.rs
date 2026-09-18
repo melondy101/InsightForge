@@ -708,8 +708,11 @@ pub fn run() {
                 Arc::new(KeyringStore::new()),
                 Arc::new(UreqAiHttpClient::new()),
             ));
+            // ADR 0002：作者资产的修订由存储层触发器打点，而触发器读的是库里的设备身份，
+            // 所以身份必须在任何作者资产写入之前落地（首读即生成并持久化）。
+            let device_id = settings.device_id()?;
             println!(
-                "[insightforge] settings ready: secret_store=windows-credential-manager service=insightforge http_client=ureq"
+                "[insightforge] settings ready: secret_store=windows-credential-manager service=insightforge http_client=ureq device_id={device_id}"
             );
             app.manage(SettingsState(settings));
 

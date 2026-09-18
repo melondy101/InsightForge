@@ -32,9 +32,10 @@ fn open_applies_ticket02_migrations_and_creates_domain_tables() {
         // 0010 为 06 号票新增（draft 表）；0011 为 07 号票新增（draft_reference 表）；
         // 0012 为 09 号票新增（ai_call_audit 表）；0013 为 11 号票新增（thought_card 表）；
         // 0014–0015 为 10 号票新增（coach_session / coach_turn 表）；
-        // 0016 为 ADR 0002 新增（作者资产的 rev / origin_device 同步列）。
-        vec![1, 2, 3, 4, 10, 11, 12, 13, 14, 15, 16],
-        "migrations must apply in strict order (02: 0001-0003, 08: 0004, 06: 0010, 07: 0011, 09: 0012, 11: 0013, 10: 0014-0015, ADR 0002: 0016)"
+        // 0016 为 ADR 0002 新增（作者资产的 rev / origin_device 同步列）；
+        // 0017 为 ADR 0002 新增（rev / origin_device 的存储层打点触发器）。
+        vec![1, 2, 3, 4, 10, 11, 12, 13, 14, 15, 16, 17],
+        "migrations must apply in strict order (02: 0001-0003, 08: 0004, 06: 0010, 07: 0011, 09: 0012, 11: 0013, 10: 0014-0015, ADR 0002: 0016-0017)"
     );
 
     let tables = table_names(&dir.path().join("insightforge.sqlite"));
