@@ -97,7 +97,7 @@ pub struct CoachTurn {
 }
 
 /// 陪练会话。
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CoachSession {
     pub id: String,
@@ -514,12 +514,10 @@ mod tests {
     use super::*;
     use std::sync::Arc;
 
-    #[test]
-    fn parse_action_detects_question() {
-        let dir = tempfile::tempdir().unwrap();
-        let db_path = dir.path().join("insightforge.sqlite");
-        let repo = Arc::new(Repository::open(&db_path).unwrap());
-        let drafts_dir = dir.path().join("drafts");
+    /// 在临时目录里装配一个跑在真实 SQLite 上的陪练服务。
+    fn service_in(dir: &std::path::Path) -> CoachService {
+        let repo = Arc::new(Repository::open(&dir.join("insightforge.sqlite")).unwrap());
+        let drafts_dir = dir.join("drafts");
         std::fs::create_dir_all(&drafts_dir).unwrap();
         let drafts = Arc::new(DraftsService::new(Arc::clone(&repo), drafts_dir));
         let search = Arc::new(SearchService::new(Arc::clone(&repo)));
@@ -530,7 +528,26 @@ mod tests {
             references,
         ));
         let http = Arc::new(crate::http_client::UreqAiHttpClient::new());
-        let service = CoachService::new(repo, drafts, egress, http, 3);
+        CoachService::new(repo, drafts, egress, http, 3)
+    }
+
+    #[test]
+    fn fresh_database_can_start_and_read_back_a_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = service_in(dir.path());
+
+        let session = service.start("draft-1").unwrap();
+        assert_eq!(session.draft_id, "draft-1");
+        assert_eq!(session.state, CoachSessionState::Active.to_string());
+        assert_eq!(session.current_round, 0);
+
+        assert_eq!(service.get_session(&session.id).unwrap(), session);
+    }
+
+    #[test]
+    fn parse_action_detects_question() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = service_in(dir.path());
 
         assert_eq!(
             service.parse_action("Question: What do you mean?"),

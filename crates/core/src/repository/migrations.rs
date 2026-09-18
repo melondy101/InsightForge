@@ -32,7 +32,8 @@ pub struct Migration {
 /// 应用当前的全部领域迁移列表。
 ///
 /// 编号预分配：02 号票 `0001–0009`（已用 `0001–0003`），08 号票经主控授权
-/// 使用 `0004`，06 号票 `0010–0019`，09 号票 `0020–0029`；未用完的编号留空。
+/// 使用 `0004`，06 号票 `0010–0019`（`0010–0013` 已用），09 号票 `0020–0029`；
+/// 10 号票（陪练）经主控授权使用 `0014–0015`；未用完的编号留空。
 pub const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 1,
@@ -160,6 +161,37 @@ CREATE VIRTUAL TABLE fragment_fts USING fts5(
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 )",
+    },
+    // 10 号票：陪练会话与轮次（三轮协议的状态载体）。
+    Migration {
+        version: 14,
+        name: "create_coach_session",
+        sql: "CREATE TABLE coach_session (
+    id TEXT PRIMARY KEY,
+    draft_id TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('active', 'waiting_for_coach', 'completed', 'archived')),
+    current_round INTEGER NOT NULL,
+    max_rounds INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX idx_coach_session_draft ON coach_session(draft_id)",
+    },
+    Migration {
+        version: 15,
+        name: "create_coach_turn",
+        sql: "CREATE TABLE coach_turn (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES coach_session(id),
+    draft_id TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('user', 'coach')),
+    content TEXT NOT NULL,
+    action TEXT,
+    round_number INTEGER NOT NULL,
+    helpful INTEGER NOT NULL DEFAULT 0 CHECK (helpful IN (0, 1)),
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX idx_coach_turn_session ON coach_turn(session_id)",
     },
 ];
 
