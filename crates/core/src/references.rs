@@ -138,7 +138,7 @@ impl ReferencesService {
             Err(err) => return Err(ReferencesError::Repository(err)),
         };
 
-        let now = now_iso(now);
+        let now = format_iso(now);
         let reference = Reference {
             id: generate_id(),
             draft_id: input.draft_id.clone(),
@@ -256,9 +256,7 @@ fn extract_snippet(text: &str, max_chars: usize) -> String {
     s
 }
 
-fn now_iso(now: DateTime<Utc>) -> String {
-    now.format("%Y-%m-%dT%H:%M:%S.%6fZ").to_string()
-}
+use crate::clock::format_iso;
 
 fn generate_id() -> String {
     use std::hash::{Hash, Hasher};

@@ -292,15 +292,7 @@ fn generate_audit_id() -> String {
     format!("audit_{:x}", hasher.finish())
 }
 
-/// ISO 8601 时间戳。
-fn now_iso() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    // 简单实现：DateTime<Utc> 需要 chrono，这里用 Unix 时间戳字符串。
-    format!("{}", now.as_secs())
-}
+use crate::clock::now_iso;
 
 #[cfg(test)]
 mod tests {

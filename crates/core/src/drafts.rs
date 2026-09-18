@@ -538,9 +538,7 @@ impl DraftsService {
     }
 }
 
-fn now_iso() -> String {
-    Utc::now().format("%Y-%m-%dT%H:%M:%S.%6fZ").to_string()
-}
+use crate::clock::now_iso;
 
 /// 将文件 mtime（毫秒）转 ISO-8601，便于把磁盘文件的新旧如实反映到列表排序。
 /// 解析失败时回退到当前时间，绝不因此让 list() 失败。
