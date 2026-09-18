@@ -7,7 +7,9 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::clock::now_iso;
 use crate::drafts::DraftsService;
+use crate::identity::new_id;
 use crate::repository::Repository;
 
 /// 思考卡：连接想法、素材与草稿位置。
@@ -65,7 +67,7 @@ impl ThoughtsService {
     /// 创建或更新思考卡。
     pub fn upsert(&self, input: &UpsertThoughtCard) -> Result<ThoughtCard, ThoughtsError> {
         let now = now_iso();
-        let id = input.id.clone().unwrap_or_else(|| generate_id(&input.idea));
+        let id = input.id.clone().unwrap_or_else(new_id);
 
         // 验证草稿是否存在。
         let _draft = self.drafts.find_draft(&input.draft_filename)?;
@@ -225,21 +227,6 @@ impl ThoughtsService {
         Ok(())
     }
 }
-
-/// 生成思考卡 ID。
-fn generate_id(idea: &str) -> String {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    idea.hash(&mut hasher);
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos()
-        .hash(&mut hasher);
-    format!("thought_{:x}", hasher.finish())
-}
-
-use crate::clock::now_iso;
 
 #[cfg(test)]
 mod tests {

@@ -11,10 +11,10 @@ use std::time::Duration;
 
 use serde::Serialize;
 use thiserror::Error;
-use uuid::Uuid;
 use walkdir::WalkDir;
 
 use crate::executor::{CancelToken, Executor};
+use crate::identity::new_id;
 use crate::indexer;
 use crate::repository::Repository;
 use crate::scan::{
@@ -261,7 +261,7 @@ impl Sources {
         }
 
         let source = StoredSource {
-            id: Uuid::new_v4().to_string(),
+            id: new_id(),
             name: name.to_string(),
             root_path: root_text,
             paused: false,

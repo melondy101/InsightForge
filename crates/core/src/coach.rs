@@ -10,9 +10,11 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::clock::now_iso;
 use crate::drafts::DraftsService;
 use crate::egress::{EgressBundleBuilder, EgressError};
 use crate::http_client::{AiHttpClient, HttpRequest};
+use crate::identity::new_id;
 #[allow(unused_imports)]
 use crate::references::ReferencesService;
 use crate::repository::Repository;
@@ -157,7 +159,7 @@ impl CoachService {
 
     /// 启动陪练会话（仅由显式动作触发）。
     pub fn start(&self, draft_id: &str) -> Result<CoachSession, CoachError> {
-        let id = generate_session_id();
+        let id = new_id();
         let now = now_iso();
         let state = CoachSessionState::Active;
         let draft_id = draft_id.to_string();
@@ -312,7 +314,7 @@ impl CoachService {
         content: &str,
         action: Option<&str>,
     ) -> Result<CoachTurn, CoachError> {
-        let id = generate_turn_id();
+        let id = new_id();
         let now = now_iso();
         let session_id = session.id.clone();
         let current_round = session.current_round;
@@ -475,32 +477,6 @@ fn is_suspected_body_text(text: &str) -> bool {
     }
     false
 }
-
-/// 生成会话 ID。
-fn generate_session_id() -> String {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos()
-        .hash(&mut hasher);
-    format!("session_{:x}", hasher.finish())
-}
-
-/// 生成轮次 ID。
-fn generate_turn_id() -> String {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos()
-        .hash(&mut hasher);
-    format!("turn_{:x}", hasher.finish())
-}
-
-use crate::clock::now_iso;
 
 #[cfg(test)]
 mod tests {

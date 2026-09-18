@@ -11,6 +11,8 @@ use std::sync::Arc;
 use serde::Serialize;
 use thiserror::Error;
 
+use crate::clock::now_iso;
+use crate::identity::new_id;
 use crate::references::ReferencesService;
 use crate::repository::Repository;
 use crate::search::SearchService;
@@ -220,7 +222,7 @@ impl AuditLogger {
         status: &str,
     ) -> Result<AuditRecord, EgressError> {
         let record = AuditRecord {
-            id: generate_audit_id(),
+            id: new_id(),
             model: model.to_string(),
             created_at: now_iso(),
             fragment_count,
@@ -279,20 +281,6 @@ impl AuditLogger {
         Ok(records)
     }
 }
-
-/// 生成审计记录 ID。
-fn generate_audit_id() -> String {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos()
-        .hash(&mut hasher);
-    format!("audit_{:x}", hasher.finish())
-}
-
-use crate::clock::now_iso;
 
 #[cfg(test)]
 mod tests {

@@ -5,7 +5,10 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use insightforge_core::{MemorySecretStore, Repository, Settings, UreqAiHttpClient};
+use insightforge_core::{
+    AuditLogger, DraftsService, MemorySecretStore, Repository, Settings, ThoughtsService,
+    UpsertThoughtCard, UreqAiHttpClient,
+};
 
 /// 参与同步的作者资产表。顺序即插入顺序：draft_reference 引用 draft，
 /// coach_turn 引用 coach_session。
@@ -192,5 +195,53 @@ fn applying_a_remote_revision_keeps_the_number_the_sender_declared() {
         (7, Some("other-device".to_string())),
         "an explicitly declared remote revision must land untouched, or the two devices would \
          never agree on which write is newer"
+    );
+}
+
+/// 逻辑身份必须取自「另一台设备撞不上」的空间。此前的 id = 名字哈希 + 本机时间，
+/// 两台设备各自新建同名资产有可观察概率拿到同一身份，同步会把两条不同资产合成一条。
+#[test]
+fn author_asset_ids_come_from_a_uuid_space_other_devices_cannot_reach() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = Arc::new(Repository::open(&dir.path().join("insightforge.sqlite")).unwrap());
+
+    let drafts = Arc::new(DraftsService::new(
+        Arc::clone(&repo),
+        dir.path().join("drafts"),
+    ));
+    drafts.ensure_directory().unwrap();
+    let draft = drafts.create("untitled.md").unwrap();
+    assert_uuid(&draft.id, "draft");
+
+    let thoughts = ThoughtsService::new(Arc::clone(&repo), Arc::clone(&drafts));
+    let card = thoughts
+        .upsert(&UpsertThoughtCard {
+            id: None,
+            idea: "把索引当作可重建的投影".to_string(),
+            source_id: "s1".to_string(),
+            source_name: "笔记".to_string(),
+            rel_path: "a.md".to_string(),
+            heading_path: String::new(),
+            draft_id: draft.id.clone(),
+            draft_filename: "untitled.md".to_string(),
+        })
+        .unwrap();
+    assert_uuid(&card.id, "thought_card");
+
+    let audit = AuditLogger::new(Arc::clone(&repo))
+        .log("m", 0, &[], "ok")
+        .unwrap();
+    assert_uuid(&audit.id, "ai_call_audit");
+}
+
+fn assert_uuid(id: &str, what: &str) {
+    let parsed = uuid::Uuid::parse_str(id).unwrap_or_else(|e| {
+        panic!("{what} id {id:?} must be a UUID other devices can't clash on: {e}")
+    });
+    assert_eq!(
+        parsed.get_version_num(),
+        4,
+        "{what} id {id:?} must be version 4 (random), got version {:?}",
+        parsed.get_version()
     );
 }

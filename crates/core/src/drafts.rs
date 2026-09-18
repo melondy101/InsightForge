@@ -12,10 +12,11 @@ use std::sync::Arc;
 /// 临时文件命名用的进程内计数器（与 pid 组合保证唯一，避免并发保存互相覆盖）。
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-use chrono::Utc;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
+use crate::clock::now_iso;
+use crate::identity::new_id;
 use crate::repository::Repository;
 
 #[derive(Debug, Error)]
@@ -160,7 +161,7 @@ impl DraftsService {
         // 用文件 mtime 作为创建/更新时间，使列表排序反映真实文件新旧而非登记时刻。
         let ts = mtime_to_iso(baseline.mtime_ms);
         let draft = DraftFile {
-            id: generate_id(&filename),
+            id: new_id(),
             path: path.to_string_lossy().to_string(),
             filename,
             baseline_hash: baseline.hash,
@@ -191,7 +192,7 @@ impl DraftsService {
         let baseline = self.read_baseline(&path)?;
         let now = now_iso();
         let draft = DraftFile {
-            id: generate_id(filename),
+            id: new_id(),
             path: path.to_string_lossy().to_string(),
             filename: filename.to_string(),
             baseline_hash: baseline.hash,
@@ -219,7 +220,7 @@ impl DraftsService {
             .as_ref()
             .filter(|d| d.path == path.to_string_lossy())
             .map(|d| (d.id.clone(), d.created_at.clone()))
-            .unwrap_or_else(|| (generate_id(filename), now.clone()));
+            .unwrap_or_else(|| (new_id(), now.clone()));
         let draft = DraftFile {
             id,
             path: path.to_string_lossy().to_string(),
@@ -272,9 +273,7 @@ impl DraftsService {
         let new_baseline = self.read_baseline(&path)?;
         let now = now_iso();
         let draft = DraftFile {
-            id: baseline
-                .map(|b| b.id.clone())
-                .unwrap_or_else(|| generate_id(filename)),
+            id: baseline.map(|b| b.id.clone()).unwrap_or_else(new_id),
             path: path.to_string_lossy().to_string(),
             filename: filename.to_string(),
             baseline_hash: new_baseline.hash,
@@ -538,8 +537,6 @@ impl DraftsService {
     }
 }
 
-use crate::clock::now_iso;
-
 /// 将文件 mtime（毫秒）转 ISO-8601，便于把磁盘文件的新旧如实反映到列表排序。
 /// 解析失败时回退到当前时间，绝不因此让 list() 失败。
 fn mtime_to_iso(mtime_ms: i64) -> String {
@@ -571,17 +568,6 @@ fn is_our_temp(name: &str) -> bool {
                 && a.bytes().all(|c| c.is_ascii_digit())
                 && b.bytes().all(|c| c.is_ascii_digit())
     )
-}
-
-fn generate_id(filename: &str) -> String {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    filename.hash(&mut hasher);
-    Utc::now()
-        .timestamp_nanos_opt()
-        .unwrap_or(0)
-        .hash(&mut hasher);
-    format!("{:x}", hasher.finish())
 }
 
 #[cfg(test)]

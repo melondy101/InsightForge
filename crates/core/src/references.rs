@@ -10,6 +10,8 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use thiserror::Error;
 
+use crate::clock::format_iso;
+use crate::identity::new_id;
 use crate::repository::Repository;
 
 #[derive(Debug, Error)]
@@ -140,7 +142,7 @@ impl ReferencesService {
 
         let now = format_iso(now);
         let reference = Reference {
-            id: generate_id(),
+            id: new_id(),
             draft_id: input.draft_id.clone(),
             fragment_id: input.fragment_id,
             source_id: snapshot.source_id,
@@ -254,18 +256,6 @@ fn extract_snippet(text: &str, max_chars: usize) -> String {
     let mut s = text.chars().take(max_chars).collect::<String>();
     s.push('…');
     s
-}
-
-use crate::clock::format_iso;
-
-fn generate_id() -> String {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    Utc::now()
-        .timestamp_nanos_opt()
-        .unwrap_or(0)
-        .hash(&mut hasher);
-    format!("{:x}", hasher.finish())
 }
 
 #[cfg(test)]

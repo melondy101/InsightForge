@@ -44,13 +44,19 @@
 今天 `knowledge_source.root_path`（绝对路径）、`draft.path` 是 UNIQUE 键，
 `file_identity` 形如 `win:<vol>:<idx>`。两台设备会把同一个知识库判成两个。
 
-因此新增不透明逻辑 ID（`source_id` / `draft_id` / `file_key`）作为跨设备身份，
-把绝对路径与 `file_identity` 降级为 per-device 映射表；
+因此跨设备身份一律改用不透明逻辑 ID：`knowledge_source.id` / `draft.id` 等主键已是
+UUIDv4，源文件级身份是 `(source_id, rel_path)`——`rel_path` 本来就是相对路径，
+所以 `file_identity` 继续留在设备本地，不需要再造一个 `file_key` 映射表；
 每条同步记录带 `rev`（**写入设备本地单调递增**，落库时由存储层触发器打点，
 而非服务端分配——离线时也必须能定序）与 `origin_device`（最后一次写入它的设备），
 服务端只保管每条逻辑身份所见过的最高修订；跨设备判序比较 `(rev, origin_device)`，
 同修订不同内容即真冲突。
 时间戳由单一 `Clock` 产生（当前有 5 份精度不同的 `now_iso()`）。
+
+两条本地 UNIQUE 约束（`knowledge_source.root_path`、`draft.path`）**保留**：
+它们表达的是「同一台设备不能授权同一目录两次」「同一目录不可能有两个同名文件」，
+本就是设备本地的不变量，也是 `sources.add` 拒绝重复根目录的依据。
+跨设备身份一律由 `id` 承担（`identity::new_id()` 铸造 UUIDv4），同步载荷永不含路径。
 
 ### 4. 铁律 4 修订：磁盘 `.md` 仍是**渲染真相**，服务器副本是**同步真相**
 
