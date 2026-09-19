@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { listen } from '@tauri-apps/api/event';
-import type { UnlistenFn } from '@tauri-apps/api/event';
 
 import { sourcesApi, type SourceSummary, type SourcesEvent } from './api';
 import { DEFAULT_IGNORE_GLOBS } from './defaults';
-import { toCommandError, type CommandErrorShape } from '../native/command-client';
+import {
+  subscribeEvents,
+  toCommandError,
+  type CommandErrorShape,
+} from '../native/command-client';
 
 /** 某一来源的补扫进度（事件驱动）。 */
 export interface BackfillProgress {
@@ -77,10 +79,7 @@ export function useSources(): SourcesModel {
   }, [refresh]);
 
   useEffect(() => {
-    let unlisten: UnlistenFn | undefined;
-    let disposed = false;
-    void listen<SourcesEvent>('sources://progress', (event) => {
-      const payload = event.payload;
+    return subscribeEvents<SourcesEvent>('sources://progress', (payload) => {
       switch (payload.type) {
         case 'backfill_started':
           setProgress((current) => ({
@@ -108,17 +107,7 @@ export function useSources(): SourcesModel {
           void refresh();
           break;
       }
-    }).then((fn) => {
-      if (disposed) {
-        fn();
-      } else {
-        unlisten = fn;
-      }
     });
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
   }, [refresh]);
 
   const actions = useMemo<SourcesActions>(() => {

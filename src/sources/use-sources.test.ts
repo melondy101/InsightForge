@@ -2,18 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
 import { sourcesApi } from './api';
+import {
+  createFakeCommandClient,
+  setCommandClient,
+  type FakeCommandClient,
+} from '../native/command-client';
 import { useSources } from './useSources';
-
-const capturedCbs: Array<(ev: { payload: Record<string, unknown> }) => void> = [];
-
-const mockListen = vi.fn((_channel: string, cb: (ev: { payload: Record<string, unknown> }) => void) => {
-  capturedCbs.push(cb);
-  return Promise.resolve(() => {});
-});
-
-vi.mock('@tauri-apps/api/event', () => ({
-  listen: (...args: unknown[]) => mockListen(...args as [string, (ev: { payload: Record<string, unknown> }) => void]),
-}));
 
 vi.mock('./api', () => ({
   sourcesApi: {
@@ -25,21 +19,23 @@ vi.mock('./api', () => ({
   },
 }));
 
+/** 事件经命令通道进来，测试因此伪造通道本身而不是 `@tauri-apps/api/event`。 */
+let channel: FakeCommandClient;
+
 function emit(payload: Record<string, unknown>) {
-  for (const cb of capturedCbs) {
-    cb({ payload });
-  }
+  channel.emit('sources://progress', payload);
 }
 
 describe('useSources', () => {
   beforeEach(() => {
+    channel = createFakeCommandClient();
+    setCommandClient(channel);
     // 进度由列表授权，所以每个用例都要显式给出列表状态，别把上一个用例的桩带进来。
     vi.mocked(sourcesApi.list).mockReset();
     vi.mocked(sourcesApi.list).mockResolvedValue([]);
   });
 
   it('backfill_started 将进度初始化为 0/N', async () => {
-    capturedCbs.length = 0;
     vi.mocked(sourcesApi.list).mockResolvedValue([
       source('src-1', 'indexing', { processed: 0, totalFiles: 5 }),
     ]);
@@ -59,7 +55,6 @@ describe('useSources', () => {
   });
 
   it('file_indexed 事件序列使 processed 单调递增到 N', async () => {
-    capturedCbs.length = 0;
     vi.mocked(sourcesApi.list).mockResolvedValue([
       source('src-1', 'indexing', { processed: 0, totalFiles: 3 }),
     ]);
@@ -103,8 +98,6 @@ describe('useSources', () => {
   });
 
   it('backfill_completed 后进度条目被清除', async () => {
-    capturedCbs.length = 0;
-
     const { result } = renderHook(() => useSources());
 
     await act(async () => {
@@ -134,8 +127,6 @@ describe('useSources', () => {
   });
 
   it('无变化同步的 file_indexed 事件携带 fragment_count=0', async () => {
-    capturedCbs.length = 0;
-
     const { result } = renderHook(() => useSources());
 
     await act(async () => {
@@ -173,7 +164,6 @@ describe('useSources', () => {
   });
 
   it('处理多个来源的并发进度', async () => {
-    capturedCbs.length = 0;
     const { result } = renderHook(() => useSources());
 
     await act(async () => {
@@ -247,7 +237,6 @@ describe('useSources', () => {
   });
 
   it('列表带着在跑的作业时，一条事件都没收到也能显示进度', async () => {
-    capturedCbs.length = 0;
     vi.mocked(sourcesApi.list).mockResolvedValueOnce([
       source('src-1', 'indexing', { processed: 1, totalFiles: 2 }),
     ]);
@@ -261,7 +250,6 @@ describe('useSources', () => {
   });
 
   it('列表说该来源已空闲时进度必须抹掉，哪怕结束事件从未到达', async () => {
-    capturedCbs.length = 0;
     vi.mocked(sourcesApi.list).mockResolvedValue([
       source('src-1', 'indexing', { processed: 1, totalFiles: 2 }),
     ]);

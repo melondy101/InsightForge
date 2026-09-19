@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getVersion } from '@tauri-apps/api/app';
 
 import {
   diagnosticsApi,
@@ -11,7 +10,7 @@ import {
   type DiagnosticSnapshot,
   type LogEntry,
 } from './api';
-import { type CommandErrorShape } from '../native/command-client';
+import { appVersion, type CommandErrorShape } from '../native/command-client';
 
 /**
  * 诊断面板：用户可一键复制或导出脱敏诊断快照（Phase C）。
@@ -30,7 +29,7 @@ export function DiagnosticsView() {
     setBusy(true);
     setError(null);
     try {
-      const version = await getVersion();
+      const version = await appVersion();
       const [snap, logJson] = await Promise.all([
         diagnosticsApi.getSnapshot(version),
         diagnosticsApi.getEventLog(100),
