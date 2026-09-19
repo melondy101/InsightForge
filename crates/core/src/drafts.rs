@@ -1,21 +1,16 @@
 //! 草稿管理：正文永远在磁盘，数据库只存元数据与保存基线。
 //!
-//! 保存路径：
-//! - 同目录写入临时文件 → flush → fsync → 平台原子替换（Windows ReplaceFileW，
-//!   Unix rename）→ 成功后更新基线。
-//! - 外部编辑器改过文件时，保存前比对基线，返回结构化 Conflict，前端三选一。
+//! 落盘方式（唯一临时文件 → fsync → 平台原子替换）与「一个名字能不能逃出目录」都归
+//! [`DocumentStore`]（铁律 1 + 铁律 4）；本模块只管登记、基线比对与冲突三选一。
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
-
-/// 临时文件命名用的进程内计数器（与 pid 组合保证唯一，避免并发保存互相覆盖）。
-static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::clock::now_iso;
+use crate::document_store::{DocumentError, DocumentStore};
 use crate::identity::new_id;
 use crate::repository::Repository;
 
@@ -35,6 +30,15 @@ pub enum DraftsError {
 
     #[error("conflict: {0}")]
     Conflict(String),
+}
+
+impl From<DocumentError> for DraftsError {
+    fn from(error: DocumentError) -> Self {
+        match error {
+            DocumentError::InvalidName(name) => DraftsError::InvalidName(name),
+            DocumentError::Io(err) => DraftsError::Io(err),
+        }
+    }
 }
 
 impl DraftsError {
@@ -110,20 +114,25 @@ struct FileBaseline {
 /// 草稿服务：只关心「授权目录下的 .md 文件」。
 pub struct DraftsService {
     repo: Arc<Repository>,
-    drafts_dir: PathBuf,
+    store: DocumentStore,
 }
 
 impl DraftsService {
     pub fn new(repo: Arc<Repository>, drafts_dir: impl Into<PathBuf>) -> Self {
         Self {
             repo,
-            drafts_dir: drafts_dir.into(),
+            store: DocumentStore::new(drafts_dir),
         }
+    }
+
+    /// 授权目录本身（列表、诊断与测试用）。
+    pub fn dir(&self) -> &Path {
+        self.store.root()
     }
 
     /// 确保草稿目录存在且可写。
     pub fn ensure_directory(&self) -> Result<(), DraftsError> {
-        std::fs::create_dir_all(&self.drafts_dir)?;
+        self.store.ensure_root()?;
         Ok(())
     }
 
@@ -132,18 +141,18 @@ impl DraftsService {
     /// 磁盘上存在、但数据库无登记的 .md（例如用户用外部编辑器直接落地的文件）
     /// 会被自动登记，绝不静默丢弃——否则用户会看到「文件明明在磁盘，列表里却没有」。
     pub fn list(&self) -> Result<Vec<DraftFile>, DraftsError> {
-        let entries = std::fs::read_dir(&self.drafts_dir)?;
         let mut drafts = Vec::new();
-        for entry in entries {
-            let entry = entry?;
-            let path = entry.path();
-            if path.extension().map(|e| e == "md").unwrap_or(false) {
-                let draft = match self.load_draft(&path)? {
-                    Some(d) => d,
-                    None => self.register_orphan(&path)?,
-                };
-                drafts.push(draft);
-            }
+        for name in self.store.documents()? {
+            // 目录里可能有名字根本没法寻址的东西（例如别处搬来的 `a:b.md`）：
+            // 读不到也写不回，硬登记进列表反而更糟，故跳过而不是让整个列表失败。
+            let Ok(path) = self.store.path_of(&name) else {
+                continue;
+            };
+            let draft = match self.load_draft(&path)? {
+                Some(d) => d,
+                None => self.register_orphan(&path)?,
+            };
+            drafts.push(draft);
         }
         drafts.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
         Ok(drafts)
@@ -177,18 +186,7 @@ impl DraftsService {
     /// 新建草稿文件（正文空，仅元数据入库）。
     pub fn create(&self, filename: &str) -> Result<DraftFile, DraftsError> {
         self.ensure_directory()?;
-        if !filename.ends_with(".md") {
-            return Err(DraftsError::InvalidName(
-                "filename must end with .md".to_string(),
-            ));
-        }
-        let path = self.drafts_dir.join(filename);
-        if path.exists() {
-            return Err(DraftsError::InvalidName(format!(
-                "file already exists: {filename}"
-            )));
-        }
-        std::fs::write(&path, "")?;
+        let path = self.store.create(filename)?;
         let baseline = self.read_baseline(&path)?;
         let now = now_iso();
         let draft = DraftFile {
@@ -209,7 +207,7 @@ impl DraftsService {
     /// 若草稿已存在（同路径），复用已有 ID 与 created_at，仅更新 baseline 与 updated_at。
     pub fn open(&self, filename: &str) -> Result<DraftFile, DraftsError> {
         self.ensure_directory()?;
-        let path = self.drafts_dir.join(filename);
+        let path = self.store.path_of(filename)?;
         if !path.exists() {
             return Err(DraftsError::NotFound(filename.to_string()));
         }
@@ -238,7 +236,7 @@ impl DraftsService {
     /// 原子保存：检测外部修改，有冲突则返回 Conflict。
     pub fn save(&self, filename: &str, content: &str) -> Result<DraftFile, DraftsError> {
         self.ensure_directory()?;
-        let path = self.drafts_dir.join(filename);
+        let path = self.store.path_of(filename)?;
         if !path.exists() {
             return Err(DraftsError::NotFound(filename.to_string()));
         }
@@ -255,7 +253,7 @@ impl DraftsService {
                 || current_baseline.size != bl.baseline_size
                 || current_baseline.hash != bl.baseline_hash
             {
-                let external_content = std::fs::read_to_string(&path)?;
+                let external_content = self.store.read_to_string(filename)?;
                 return Err(DraftsError::Conflict(
                     serde_json::to_string(&Conflict {
                         message: "file modified externally since last open/save".to_string(),
@@ -268,7 +266,7 @@ impl DraftsService {
             }
         }
 
-        self.atomic_write(&path, content)?;
+        self.store.write_atomic(filename, content)?;
 
         let new_baseline = self.read_baseline(&path)?;
         let now = now_iso();
@@ -300,13 +298,13 @@ impl DraftsService {
         local_content: &str,
     ) -> Result<DraftFile, DraftsError> {
         self.ensure_directory()?;
-        let path = self.drafts_dir.join(filename);
+        let path = self.store.path_of(filename)?;
         if !path.exists() {
             return Err(DraftsError::NotFound(filename.to_string()));
         }
         match resolution {
             ConflictResolution::KeepLocal => {
-                self.atomic_write(&path, local_content)?;
+                self.store.write_atomic(filename, local_content)?;
                 self.open(filename)
             }
             ConflictResolution::AdoptExternal => {
@@ -314,103 +312,20 @@ impl DraftsService {
                 self.open(filename)
             }
             ConflictResolution::SaveAsCopy => {
-                let copy_name = self.unique_copy_name(filename)?;
-                let copy_path = self.drafts_dir.join(&copy_name);
-                self.atomic_write(&copy_path, local_content)?;
+                let copy_name = self.store.unique_copy_name(filename)?;
+                self.store.write_atomic(&copy_name, local_content)?;
                 self.open(&copy_name)
             }
         }
     }
 
-    /// 原子写入：唯一临时文件 → flush/fsync → 平台替换（Windows ReplaceFileW / Unix rename）。
-    /// 不更新数据库基线；调用方负责刷新（`open` 会重读基线）。
-    fn atomic_write(&self, path: &Path, content: &str) -> Result<(), DraftsError> {
-        let temp_path = self.unique_temp_for(path)?;
-        std::fs::write(&temp_path, content)?;
-        // flush + fsync，确保断电/崩溃前已落盘
-        if let Ok(f) = std::fs::File::options().write(true).open(&temp_path) {
-            let _ = f.sync_all();
-        }
-
-        #[cfg(windows)]
-        unsafe {
-            use std::os::windows::prelude::*;
-            // encode_wide() 不含 NUL 终结符；W-API（ReplaceFileW）需要以 0 结尾的宽字符串，
-            // 否则会读到越界垃圾并返回 ERROR_INVALID_NAME。这是 save() 既有实现中未被 Windows 测试暴露的缺陷。
-            let mut path_w: Vec<u16> = path.as_os_str().encode_wide().collect();
-            path_w.push(0);
-            let mut temp_w: Vec<u16> = temp_path.as_os_str().encode_wide().collect();
-            temp_w.push(0);
-            // ReplaceFileW 要求被替换文件已存在；新文件（如冲突另存的副本）走 rename。
-            let result = if path.exists() {
-                windows_sys::Win32::Storage::FileSystem::ReplaceFileW(
-                    path_w.as_ptr(),
-                    temp_w.as_ptr(),
-                    std::ptr::null(),
-                    0,
-                    std::ptr::null(),
-                    std::ptr::null(),
-                )
-            } else {
-                // 回退到 rename：新文件不存在时 ReplaceFileW 会报 ERROR_FILE_NOT_FOUND。
-                match std::fs::rename(&temp_path, path) {
-                    Ok(()) => 1,
-                    Err(e) => {
-                        let _ = std::fs::remove_file(&temp_path);
-                        return Err(DraftsError::Io(e));
-                    }
-                }
-            };
-            if result == 0 {
-                let err = std::io::Error::last_os_error();
-                let _ = std::fs::remove_file(&temp_path);
-                return Err(DraftsError::Io(err));
-            }
-        }
-        #[cfg(not(windows))]
-        {
-            std::fs::rename(&temp_path, path)?;
-        }
-        Ok(())
-    }
-
-    /// 为 `path` 生成一个进程内唯一的临时文件名（避免并发保存互相覆盖，
-    /// 也便于崩溃后清理残留）。
-    fn unique_temp_for(&self, path: &Path) -> Result<PathBuf, DraftsError> {
-        let name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| "draft.md".to_string());
-        let n = TEMP_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        let pid = std::process::id();
-        Ok(path.with_file_name(format!("{name}.{pid}-{n}.tmp")))
-    }
-
-    /// 为冲突另存副本生成不重名的新文件名：`note.conflict.<nanos>.md`。
-    fn unique_copy_name(&self, filename: &str) -> Result<String, DraftsError> {
-        let path = Path::new(filename);
-        let stem = path
-            .file_stem()
-            .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_else(|| "draft".to_string());
-        let ext = path
-            .extension()
-            .map(|e| e.to_string_lossy().to_string())
-            .unwrap_or_else(|| "md".to_string());
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        Ok(format!("{stem}.conflict.{nanos}.{ext}"))
-    }
-
     /// 删除草稿文件。
     pub fn delete(&self, filename: &str) -> Result<(), DraftsError> {
-        let path = self.drafts_dir.join(filename);
+        let path = self.store.path_of(filename)?;
         if !path.exists() {
             return Err(DraftsError::NotFound(filename.to_string()));
         }
-        std::fs::remove_file(&path)?;
+        self.store.remove(filename)?;
         self.remove_draft(filename)?;
         Ok(())
     }
@@ -421,21 +336,7 @@ impl DraftsService {
     /// 永远不是真相，可安全删除。启动时调用一次即可；调用时无在途保存，不会误删进行中的临时文件。
     /// 仅清理符合本服务命名模式的 `.tmp`，避免误删用户或其他工具的临时文件。
     pub fn cleanup_stale_temp_files(&self) -> Result<usize, DraftsError> {
-        let mut removed = 0;
-        for entry in std::fs::read_dir(&self.drafts_dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
-                continue;
-            };
-            if path.extension().map(|e| e == "tmp").unwrap_or(false)
-                && is_our_temp(name)
-                && std::fs::remove_file(&path).is_ok()
-            {
-                removed += 1;
-            }
-        }
-        Ok(removed)
+        Ok(self.store.cleanup_stale_temp_files()?)
     }
 
     // --- 内部：SQLite 薄投影 ---
@@ -548,28 +449,6 @@ fn mtime_to_iso(mtime_ms: i64) -> String {
     }
 }
 
-/// 判断文件名是否为本服务的临时文件：`<orig>.<pid>-<n>.tmp`。
-/// 仅当后缀为 `.tmp` 且倒数第二段为纯数字-纯数字时命中，避免误删其他 `.tmp`。
-fn is_our_temp(name: &str) -> bool {
-    if !name.ends_with(".tmp") {
-        return false;
-    }
-    let stem = &name[..name.len() - 4]; // 去掉 ".tmp"
-    let Some(idx) = stem.rfind('.') else {
-        return false;
-    };
-    let suffix = &stem[idx + 1..];
-    let mut parts = suffix.split('-');
-    matches!(
-        (parts.next(), parts.next(), parts.next()),
-        (Some(a), Some(b), None)
-            if !a.is_empty()
-                && !b.is_empty()
-                && a.bytes().all(|c| c.is_ascii_digit())
-                && b.bytes().all(|c| c.is_ascii_digit())
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -644,7 +523,7 @@ mod tests {
         service.save("note.md", "v1-local").unwrap();
 
         // 外部进程改动了文件
-        let path = service.drafts_dir.join("note.md");
+        let path = service.dir().join("note.md");
         std::fs::write(&path, "EXTERNAL-CHANGES").unwrap();
 
         let resolved = service
@@ -663,7 +542,7 @@ mod tests {
         service.create("note.md").unwrap();
         service.save("note.md", "v1-local").unwrap();
 
-        let path = service.drafts_dir.join("note.md");
+        let path = service.dir().join("note.md");
         std::fs::write(&path, "EXTERNAL-CHANGES").unwrap();
 
         service
@@ -682,7 +561,7 @@ mod tests {
         service.create("note.md").unwrap();
         service.save("note.md", "v1-local").unwrap();
 
-        let path = service.drafts_dir.join("note.md");
+        let path = service.dir().join("note.md");
         std::fs::write(&path, "EXTERNAL-CHANGES").unwrap();
 
         let copy = service
@@ -693,7 +572,7 @@ mod tests {
         // 原文件保持外部内容
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "EXTERNAL-CHANGES");
         // 副本内容为本地编辑
-        let copy_path = service.drafts_dir.join(&copy.filename);
+        let copy_path = service.dir().join(&copy.filename);
         assert_eq!(std::fs::read_to_string(&copy_path).unwrap(), "v2-local");
         // 副本出现在列表中
         let names: Vec<String> = service

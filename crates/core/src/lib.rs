@@ -8,6 +8,7 @@ pub mod chunking;
 pub mod clock;
 pub mod coach;
 pub mod diagnostics;
+pub mod document_store;
 pub mod drafts;
 pub mod egress;
 pub mod executor;
@@ -34,6 +35,7 @@ pub use diagnostics::{
     build_snapshot, now_rfc3339, platform_label, DatabaseDiagnostics, DiagnosticSnapshot, EventLog,
     LogEntry, LogLevel, MUST_NOT_LOG_KEYS,
 };
+pub use document_store::{DocumentError, DocumentStore};
 pub use drafts::{Conflict, DraftFile, DraftsError, DraftsService};
 pub use egress::{
     AuditLogger, AuditRecord, EgressBundle, EgressBundleBuilder, EgressError, EgressFragment,
