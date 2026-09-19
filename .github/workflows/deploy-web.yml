@@ -1,0 +1,85 @@
+name: Deploy web
+
+# 网页端「部署即更新」（ADR 0002 §6）：同一份 React 代码构建出静态站，发到 GitHub Pages。
+#
+# 网页端不含任何引擎——草稿、索引、AI 出站都经 CommandClient 的 HTTP adapter
+# 打到同步服务端（`{base}/rpc/{command}`，见 src/native/command-client.ts）。
+# 所以没配服务端地址时这条流水线**主动失败**，而不是发一个点开就报
+# `runtime_unconfigured` 的壳。
+#
+# 配置项是仓库 **variable**（不是 secret）：`INSIGHTFORGE_WEB_API_BASE`，
+# 例如 `https://sync.example.test`。它是公开数据——产物里本来就能看见。
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build web bundle
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require the sync service address
+        env:
+          API_BASE: ${{ vars.INSIGHTFORGE_WEB_API_BASE }}
+        shell: bash
+        run: |
+          if [ -z "$API_BASE" ]; then
+            echo "::error::仓库变量 INSIGHTFORGE_WEB_API_BASE 未配置：没有同步服务端时网页端不可用，不发壳。"
+            exit 1
+          fi
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Version from the single source
+        shell: bash
+        run: echo "VITE_APP_VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')" >> "$GITHUB_ENV"
+
+      - name: Frontend gates
+        run: |
+          bun run lint
+          bunx tsc --noEmit
+          bun run test
+
+      - name: Build for the Pages project subpath
+        env:
+          VITE_API_BASE_URL: ${{ vars.INSIGHTFORGE_WEB_API_BASE }}
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+        run: |
+          bun run build
+          test -f dist/index.html
+          # 地址是构建期烧进产物的：静态站没有服务端可以运行时问。
+          grep -qF "$VITE_API_BASE_URL" dist/assets/*.js
+          grep -qF "$VITE_BASE_PATH" dist/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-22.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
