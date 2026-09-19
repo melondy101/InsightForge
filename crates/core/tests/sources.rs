@@ -59,6 +59,18 @@ fn write_file(root: &Path, rel: &str, content: &str) {
     std::fs::write(path, content).expect("write file");
 }
 
+/// 建一个指向文件的符号链接。Windows 与 Unix 的 API 不同名，测试要能在两边跑：
+/// 逃逸边界（`stays_within_root`）本身与平台无关。
+#[cfg(windows)]
+fn symlink_to_file(target: &Path, link: &Path) -> std::io::Result<()> {
+    std::os::windows::fs::symlink_file(target, link)
+}
+
+#[cfg(unix)]
+fn symlink_to_file(target: &Path, link: &Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(target, link)
+}
+
 /// 轮询直至该来源状态回到 idle（补扫结束），返回最终摘要。
 fn wait_until_idle(sources: &Sources, id: &str) -> insightforge_core::SourceSummary {
     let deadline = Instant::now() + Duration::from_secs(20);
@@ -673,6 +685,8 @@ fn backfill_and_sync_never_modify_source_files() {
     }
 }
 
+/// 目录联接（junction）是 Windows 专有机制，只在 Windows 上可构造。
+#[cfg(windows)]
 #[test]
 fn junction_escape_outside_root_is_never_indexed() {
     let h = harness();
@@ -728,8 +742,8 @@ fn symlink_file_escape_outside_root_is_rejected() {
     write_file(&outside, "escape.md", "逃逸内容标记 ABCDEF。\n");
 
     let link = root.join("escape.md");
-    if let Err(err) = std::os::windows::fs::symlink_file(outside.join("escape.md"), &link) {
-        // 本机/CI 未授予 SeCreateSymbolicLinkPrivilege 时记录跳过；
+    if let Err(err) = symlink_to_file(&outside.join("escape.md"), &link) {
+        // Windows 未授予 SeCreateSymbolicLinkPrivilege 时记录跳过；
         // 目录逃逸由 junction_escape_outside_root_is_never_indexed 提供可执行证据，
         // 两者共用同一 stays_within_root 边界检查。
         eprintln!("SKIP symlink-file case (no privilege): {err}");

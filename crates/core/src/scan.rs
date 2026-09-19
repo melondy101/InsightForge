@@ -157,7 +157,10 @@ impl IgnoreMatcher {
 ///
 /// 通过已打开的只读句柄查询；拿不到（非 Windows / 查询失败）时回退
 /// `size + mtime(ns)` 组合（记录在案：回退标识在 mtime 精度内稳定）。
-pub fn file_identity(handle: &std::fs::File, meta: &std::fs::Metadata) -> String {
+pub fn file_identity(
+    #[cfg_attr(not(windows), allow(unused_variables))] handle: &std::fs::File,
+    meta: &std::fs::Metadata,
+) -> String {
     #[cfg(windows)]
     if let Some((volume, index)) = windows_file_identity(handle) {
         return format!("win:{volume:08x}:{index:016x}");

@@ -93,6 +93,8 @@ impl SecretStore for MemorySecretStore {
 /// service = [`SERVICE_NAME`]，账户由调用方给定（见 [`API_KEY_ACCOUNT`]）。
 #[derive(Debug, Clone)]
 pub struct KeyringStore {
+    // 只有 Windows 后端会读它；非 Windows 的桩实现一律返回 PlatformUnsupported。
+    #[cfg_attr(not(windows), allow(dead_code))]
     service: &'static str,
 }
 
