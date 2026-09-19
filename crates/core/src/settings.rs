@@ -84,6 +84,13 @@ pub struct AiSampleReply {
     pub content: String,
 }
 
+/// 一次守门后的补全结果：回复文本 + 实际使用的模型（供审计与界面陈列）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AiCompletion {
+    pub model: String,
+    pub content: String,
+}
+
 #[derive(Debug, Error)]
 pub enum SettingsError {
     /// AI 命令在总开关关闭或配置不齐时必须返回的明确不可用状态。
@@ -254,18 +261,27 @@ impl Settings {
     /// 样例 AI 命令：演示并锁定「总开关守门」语义——不可用时返回
     /// [`SettingsError::AiUnavailable`]；可用时经注入的 client 发一次最小补全。
     pub fn ai_sample(&self, prompt: &str) -> Result<AiSampleReply, SettingsError> {
+        let done = self.complete(prompt, SAMPLE_MAX_TOKENS)?;
+        Ok(AiSampleReply {
+            model: done.model,
+            content: done.content,
+        })
+    }
+
+    /// 领域服务复用的「守门后一次补全」：端点、模型、Key 全部来自用户配置，
+    /// 总开关关闭或配置不齐就明确报不可用——绝不退回到某个默认端点去顶替用户的选择。
+    pub fn complete(&self, prompt: &str, max_tokens: u32) -> Result<AiCompletion, SettingsError> {
         let ai = self.ai()?;
-        match ai_availability_of(&ai) {
-            AiAvailability::Unavailable { reason } => {
-                return Err(SettingsError::AiUnavailable { reason });
-            }
-            AiAvailability::Available => {}
+        if let AiAvailability::Unavailable { reason } = ai_availability_of(&ai) {
+            return Err(SettingsError::AiUnavailable { reason });
         }
         let base_url = ai.base_url.expect("available implies base url");
         let model = ai.model.expect("available implies model");
-        let response = self.complete(&base_url, &model, prompt, SAMPLE_MAX_TOKENS)?;
-        let content = extract_content(&response.body)?;
-        Ok(AiSampleReply { model, content })
+        let response = self.post_completion(&base_url, &model, prompt, max_tokens)?;
+        Ok(AiCompletion {
+            model,
+            content: extract_content(&response.body)?,
+        })
     }
 
     /// 连接测试：对当前配置发一次最小探测（出站仅 `max_tokens=1` 的 ping）。
@@ -291,7 +307,7 @@ impl Settings {
         let base_url = ai.base_url.expect("checked above");
         let model = ai.model.expect("checked above");
 
-        let outcome = self.complete(&base_url, &model, PROBE_PROMPT, PROBE_MAX_TOKENS);
+        let outcome = self.post_completion(&base_url, &model, PROBE_PROMPT, PROBE_MAX_TOKENS);
         let report = match outcome {
             Ok(response) => {
                 let ok = response.status == 200;
@@ -316,7 +332,7 @@ impl Settings {
     }
 
     /// 组装并发送一次 OpenAI 兼容补全请求（守门之后才可调用）。
-    fn complete(
+    fn post_completion(
         &self,
         base_url: &str,
         model: &str,

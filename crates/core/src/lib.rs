@@ -31,6 +31,7 @@ pub use chunking::{chunk_markdown, chunk_plain, Chunk, ChunkConfig, DEFAULT_MAX_
 pub use clock::{format_iso, now_iso};
 pub use coach::{
     CoachAction, CoachError, CoachService, CoachSession, CoachSessionState, CoachTurn,
+    CoachTurnInput,
 };
 pub use devices::{Device, DeviceRegistry, DeviceStatus, DevicesError};
 pub use diagnostics::{
@@ -58,8 +59,8 @@ pub use secrets::{
     KeyringStore, MemorySecretStore, SecretStore, SecretsError, API_KEY_ACCOUNT, SERVICE_NAME,
 };
 pub use settings::{
-    AiAvailability, AiSampleReply, AiSettings, AiUnavailableReason, Settings, SettingsError,
-    TestConnectionReport,
+    AiAvailability, AiCompletion, AiSampleReply, AiSettings, AiUnavailableReason, Settings,
+    SettingsError, TestConnectionReport,
 };
 pub use sources::{
     EventSink, IndexStatus, SourceEvent, SourceStatus, SourceSummary, Sources, SourcesError,

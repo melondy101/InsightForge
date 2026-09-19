@@ -129,7 +129,7 @@ impl From<ThoughtsError> for CommandError {
 impl From<CoachError> for CommandError {
     fn from(error: CoachError) -> Self {
         Self {
-            code: "coach_error",
+            code: error.code(),
             message: error.to_string(),
         }
     }
@@ -553,6 +553,14 @@ fn coach_get_session(
 }
 
 #[tauri::command]
+fn coach_turns(
+    state: State<'_, CoachState>,
+    session_id: String,
+) -> Result<Vec<CoachTurn>, CommandError> {
+    Ok(state.0.turns(&session_id)?)
+}
+
+#[tauri::command]
 fn coach_mark_helpful(
     state: State<'_, CoachState>,
     turn_id: String,
@@ -749,7 +757,7 @@ pub fn run() {
             println!(
                 "[insightforge] settings ready: secret_store=windows-credential-manager service=insightforge http_client=ureq device_id={device_id}"
             );
-            app.manage(SettingsState(settings));
+            app.manage(SettingsState(Arc::clone(&settings)));
 
             // 06 号票：草稿服务——原子保存 + 冲突检测
             let drafts_dir = data_dir.join("drafts");
@@ -781,7 +789,8 @@ pub fn run() {
             let thoughts = Arc::new(ThoughtsService::new(Arc::clone(&db), Arc::clone(&drafts)));
             app.manage(ThoughtsState(thoughts));
 
-            // 10 号票：陪练服务
+            // 10 号票：陪练服务。AI 调用复用设置服务的守门与 BYOK 配置，
+            // 陪练不自带一套端点/模型/Key。
             let coach = Arc::new(CoachService::new(
                 Arc::clone(&db),
                 Arc::clone(&drafts),
@@ -790,7 +799,7 @@ pub fn run() {
                     Arc::clone(&search_for_egress),
                     Arc::clone(&references_for_egress),
                 )),
-                Arc::new(UreqAiHttpClient::new()),
+                Arc::clone(&settings),
                 3,
             ));
             app.manage(CoachState(coach));
@@ -854,6 +863,7 @@ pub fn run() {
             coach_start,
             coach_respond,
             coach_get_session,
+            coach_turns,
             coach_mark_helpful,
             coach_archive,
             devices_register,

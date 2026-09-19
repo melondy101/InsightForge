@@ -13,13 +13,21 @@ use thiserror::Error;
 use crate::clock::now_iso;
 use crate::drafts::DraftsService;
 use crate::egress::{EgressBundleBuilder, EgressError};
-use crate::http_client::{AiHttpClient, HttpRequest};
 use crate::identity::new_id;
 #[allow(unused_imports)]
 use crate::references::ReferencesService;
 use crate::repository::Repository;
 #[allow(unused_imports)]
 use crate::search::SearchService;
+use crate::settings::Settings;
+
+/// 一次陪练回应的输出上限：陪练给的是提示与微任务，不是正文。
+const COACH_MAX_TOKENS: u32 = 400;
+
+/// 疑似代写时的本地安全提示（铁律 2：只提示、不改写）。
+/// 注：这段文字会进对话记录，尚未走 i18n（见 docs/HANDOFF.md 的文案债清单）。
+const SUSPECTED_BODY_HINT: &str =
+    "I can't write that for you. Try summarizing your idea in one sentence.";
 
 /// 陪练动作白名单。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -96,6 +104,8 @@ pub struct CoachTurn {
     pub action: Option<String>,
     pub round_number: i64,
     pub created_at: String,
+    /// 作者是否标过这一轮「有帮助」。
+    pub helpful: bool,
 }
 
 /// 陪练会话。
@@ -118,8 +128,10 @@ pub enum CoachError {
     Repository(#[from] crate::repository::RepositoryError),
     #[error("egress error: {0}")]
     Egress(#[from] EgressError),
-    #[error("http error: {0}")]
-    Http(#[from] crate::http_client::HttpClientError),
+    /// AI 侧的不可用/失败原因（总开关、配置缺失、HTTP、响应不可解析）。
+    /// 陪练与其余能力共用同一份守门与配置，不另开一条出站路径。
+    #[error(transparent)]
+    Settings(#[from] crate::settings::SettingsError),
     #[error("invalid action")]
     InvalidAction,
     #[error("max rounds reached")]
@@ -130,13 +142,30 @@ pub enum CoachError {
     SessionNotActive,
 }
 
+impl CoachError {
+    /// 稳定错误码：前端按码走 i18n，不展示英文 `to_string()`。
+    /// AI 相关的码直接沿用 [`crate::settings::SettingsError::code`]，
+    /// 让「AI 未启用」在设置页与陪练面板里是同一个码、同一句话。
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::Repository(_) => "repository_error",
+            Self::Egress(_) => "egress_error",
+            Self::Settings(err) => err.code(),
+            Self::InvalidAction => "invalid_action",
+            Self::MaxRoundsReached => "max_rounds_reached",
+            Self::SessionNotFound => "session_not_found",
+            Self::SessionNotActive => "session_not_active",
+        }
+    }
+}
+
 /// 陪练服务：管理会话状态、轮次记录、AI 调用与白名单解析。
 #[allow(dead_code)]
 pub struct CoachService {
     repo: Arc<Repository>,
     drafts: Arc<DraftsService>,
     egress: Arc<EgressBundleBuilder>,
-    http: Arc<dyn AiHttpClient>,
+    settings: Arc<Settings>,
     max_rounds: i64,
 }
 
@@ -145,14 +174,14 @@ impl CoachService {
         repo: Arc<Repository>,
         drafts: Arc<DraftsService>,
         egress: Arc<EgressBundleBuilder>,
-        http: Arc<dyn AiHttpClient>,
+        settings: Arc<Settings>,
         max_rounds: i64,
     ) -> Self {
         Self {
             repo,
             drafts,
             egress,
-            http,
+            settings,
             max_rounds,
         }
     }
@@ -200,14 +229,15 @@ impl CoachService {
     /// 处理用户消息，返回陪练回应。
     pub fn respond(&self, input: &CoachTurnInput) -> Result<CoachTurn, CoachError> {
         let session = self.get_session(&input.session_id)?;
+        // 先报「三轮用完」再报「会话不活跃」：前者才是作者要听懂的那句话，
+        // 而且它是把笔还给作者的信号，不是「会话坏了」的信号。
+        if session.current_round >= self.max_rounds {
+            return Err(CoachError::MaxRoundsReached);
+        }
         if session.state != CoachSessionState::Active.to_string()
             && session.state != CoachSessionState::WaitingForCoach.to_string()
         {
             return Err(CoachError::SessionNotActive);
-        }
-
-        if session.current_round >= self.max_rounds {
-            return Err(CoachError::MaxRoundsReached);
         }
 
         // 记录用户轮次。
@@ -359,10 +389,12 @@ impl CoachService {
             action,
             round_number: session.current_round + 1,
             created_at: now,
+            helpful: false,
         })
     }
 
-    /// 生成陪练回应（调用 LLM）。
+    /// 生成陪练回应：走 [`Settings::complete`]——端点、模型与 Key 都是用户配的那一份，
+    /// 总开关关闭时根本不发请求。
     fn generate_coach_response(
         &self,
         session: &CoachSession,
@@ -384,27 +416,11 @@ impl CoachService {
             bundle.fragment_count
         );
 
-        // 调用 LLM。
-        let request = HttpRequest {
-            url: format!("{}/chat/completions", self.get_base_url()?),
-            auth_header: format!("Bearer {}", self.get_api_key()?),
-            body: format!(
-                r#"{{"model":"{}","messages":[{{"role":"user","content":{}}}]}}"#,
-                self.get_model()?,
-                serde_json::to_string(&prompt).unwrap()
-            ),
-            timeout_secs: 15,
-        };
-
-        let response = self.http.post_json(request)?;
-        let content = extract_coach_content(&response.body)?;
+        let content = self.settings.complete(&prompt, COACH_MAX_TOKENS)?.content;
 
         // 检查是否为疑似连续正文（安全过滤）。
         if is_suspected_body_text(&content) {
-            return Ok(
-                "I can't write that for you. Try summarizing your idea in one sentence."
-                    .to_string(),
-            );
+            return Ok(SUSPECTED_BODY_HINT.to_string());
         }
 
         Ok(content)
@@ -434,39 +450,37 @@ impl CoachService {
         None
     }
 
-    // 占位实现：从 settings 读取 AI 配置。
-    fn get_base_url(&self) -> Result<String, CoachError> {
-        Ok("http://localhost:11434".to_string())
+    /// 一次会话的全部轮次（按轮次与写入顺序排列），供界面重建对话。
+    pub fn turns(&self, session_id: &str) -> Result<Vec<CoachTurn>, CoachError> {
+        let session_id = session_id.to_string();
+        let turns = self
+            .repo
+            .read(move |conn| {
+                let mut stmt = conn.prepare(
+                    "SELECT id, session_id, draft_id, role, content, action, round_number, created_at, helpful
+                     FROM coach_turn
+                     WHERE session_id = ?1
+                     ORDER BY round_number, created_at, id",
+                )?;
+                let mut rows = stmt.query(rusqlite::params![session_id])?;
+                let mut turns = Vec::new();
+                while let Some(row) = rows.next()? {
+                    turns.push(CoachTurn {
+                        id: row.get(0)?,
+                        session_id: row.get(1)?,
+                        draft_id: row.get(2)?,
+                        role: row.get(3)?,
+                        content: row.get(4)?,
+                        action: row.get(5)?,
+                        round_number: row.get(6)?,
+                        created_at: row.get(7)?,
+                        helpful: row.get::<_, i64>(8)? != 0,
+                    });
+                }
+                Ok(turns)
+            })?;
+        Ok(turns)
     }
-
-    fn get_model(&self) -> Result<String, CoachError> {
-        Ok("qwen2.5:7b".to_string())
-    }
-
-    fn get_api_key(&self) -> Result<String, CoachError> {
-        Ok(String::new())
-    }
-}
-
-/// 从 LLM 响应提取内容。
-fn extract_coach_content(body: &str) -> Result<String, CoachError> {
-    let value: serde_json::Value = serde_json::from_str(body).map_err(|_| {
-        CoachError::Http(crate::http_client::HttpClientError::Transport(
-            "invalid json".to_string(),
-        ))
-    })?;
-    value
-        .get("choices")
-        .and_then(|choices| choices.get(0))
-        .and_then(|choice| choice.get("message"))
-        .and_then(|message| message.get("content"))
-        .and_then(|content| content.as_str())
-        .map(str::to_string)
-        .ok_or_else(|| {
-            CoachError::Http(crate::http_client::HttpClientError::Transport(
-                "no content".to_string(),
-            ))
-        })
 }
 
 /// 检测疑似连续正文（安全过滤）。
@@ -497,7 +511,12 @@ mod tests {
             references,
         ));
         let http = Arc::new(crate::http_client::UreqAiHttpClient::new());
-        CoachService::new(repo, drafts, egress, http, 3)
+        let settings = Arc::new(Settings::new(
+            Arc::clone(&repo),
+            Arc::new(crate::secrets::MemorySecretStore::default()),
+            http,
+        ));
+        CoachService::new(repo, drafts, egress, settings, 3)
     }
 
     #[test]
