@@ -32,22 +32,32 @@ function ConflictDialog({
   const { t } = useTranslation();
   return (
     <div className="drafts-conflict" data-el="drafts-conflict">
-      <h3>{t('drafts.conflictTitle')}</h3>
-      <p>{conflict.message}</p>
-      <div className="drafts-conflict__actions">
-        <button type="button" data-el="drafts-conflict-local" onClick={() => onResolve('local')}>
-          {t('drafts.conflictKeepLocal')}
-        </button>
-        <button
-          type="button"
-          data-el="drafts-conflict-external"
-          onClick={() => onResolve('external')}
-        >
-          {t('drafts.conflictAdoptExternal')}
-        </button>
-        <button type="button" data-el="drafts-conflict-saveas" onClick={() => onResolve('saveAs')}>
-          {t('drafts.conflictSaveAs')}
-        </button>
+      <div className="drafts-conflict__dialog" data-el="drafts-conflict-dialog">
+        <h3>{t('drafts.conflictTitle')}</h3>
+        <p>{conflict.message}</p>
+        <div className="drafts-conflict__actions">
+          <button
+            type="button"
+            data-el="drafts-conflict-local"
+            onClick={() => onResolve('local')}
+          >
+            {t('drafts.conflictKeepLocal')}
+          </button>
+          <button
+            type="button"
+            data-el="drafts-conflict-external"
+            onClick={() => onResolve('external')}
+          >
+            {t('drafts.conflictAdoptExternal')}
+          </button>
+          <button
+            type="button"
+            data-el="drafts-conflict-saveas"
+            onClick={() => onResolve('saveAs')}
+          >
+            {t('drafts.conflictSaveAs')}
+          </button>
+        </div>
       </div>
     </div>
   );

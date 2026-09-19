@@ -22,12 +22,17 @@
 ## 二、门禁状态（提交前全绿）
 
 **前端**（`bun run test` / `bunx tsc --noEmit` / `bun run lint`）
-- 测试：**127 passed**（13 文件），含 `src/diagnostics/api.test.ts` 的 5 个格式化器单测。
+- 测试：**172 passed**（20 文件），含三条契约测试：
+  `src/native/command-client.test.ts`（seam 三 adapter）、`src/i18n/i18n.test.ts`（双语键对等 +
+  源码里每个静态 `t()` 键都要有文案）、`src/styles.test.ts`（视图用到的类必须有定义、
+  styles.css 里不许留谁都不用的死规则）。
 - `tsc --noEmit`：0 错误。
 - `eslint`：0 error / 0 warning。
 
 **Rust**（`cargo test --workspace` / `cargo clippy -- -D warnings` / `cargo fmt --check` / `cargo build`）
-- 测试：**123 passed**（core 57 单元 + 66 集成含 `secrets`/`repository`/`schema`/`sources`/`settings`/`index_search_contract`；desktop 10 个 `updater_tests`）。
+- 测试：**185 passed**（core 单元 + 契约集成：`secrets`/`repository`/`schema`/`sources`/`settings`/
+  `index_search_contract`/`sync_interval_contract`/`devices_contract`/`coach_contract`/
+  `sync_bundle_contract`；desktop `updater_tests`）。
 - `clippy -- -D warnings`：通过。
 - `fmt --check`：通过。
 - `cargo build`：成功（dev profile）。
