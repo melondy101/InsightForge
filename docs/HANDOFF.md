@@ -139,18 +139,15 @@
 
 - 已提交：Phase A–F 全部功能提交，每功能独立 commit；本轮另加 8 个清偿技术债的 commit
   （SyncBundle、devices、部署即更新、sync_interval、coach 前端、错误码文案、样式契约、seam 收口）。
-- 工作树未跟踪 **54 个文件，全部来自另一条任务线（Markdown→LaTeX→PDF 报告渲染）**，
-  本分支一律未纳入提交。分类与各自要谁定：
-  - 报告成品与源码：`docs/OPTIMIZATION_REPORT*.{md,tex,pdf}`、`OPTIMIZATION_REPORT.pdf`、
-    `docs/{book_preamble,report_template,elegantbook.cls}`、`preprocess_report.py`
-    —— 要不要入库由这条任务线的作者决定；本分支不替它做决定。
-  - `docs/latex-template/elegantbook/`：第三方模板**含 License**，若入库需按 vendored 依赖对待
-    （保留 License、别改源码），否则留在工作树外。
-  - `docs/test_math*.{tex,md,pdf}`、`docs/test_pandoc*.{tex,md}`：一次性探针（数学/ Pandoc 渲染试验），
-    是删除候选；删除属破坏性操作，需本人确认，故只记录不动手。
-  - `docs/redesign/`：早期原型，按既有约定排除。
-- 已忽略的纯生成物：LaTeX 中间文件（`*.aux`/`*.bcf`/`*.run.xml`/`*.synctex.gz`、
-  `*.out`/`*.toc`）与 `test-results/`。这 12 个文件此前混在未跟踪列表里，
-  让「工作树脏了多少」这件事失真。
+- 工作树**未跟踪文件为 0**。此前挂着的 54 个文件全部来自另一条任务线（Markdown→LaTeX→PDF 报告渲染），
+  已于 2026-09-19 整体移出 `docs/` 与仓库根，改放在已被 `.gitignore` 吞掉的 `.scratch/` 下：
+  - `.scratch/report-latex/`：报告源码与成品、`elegantbook.cls`/`book_preamble.tex`/`report_template.tex`、
+    第三方 `latex-template/elegantbook/`（含 License）、`test_math*`/`test_pandoc*` 探针、`preprocess_report.py`、
+    LaTeX 中间产物。**一个文件都没删**，取回与「是否正式入库」的逐类判断记在同目录 `README.md`。
+  - `.scratch/foundry-redesign/`：早期 Foundry 重设计原型三份；其设计令牌已落在 `src/styles.css`，
+    故不再作为待执行文档留在 `docs/`，理由与取回方式见同目录 `README.md`。
+  - 这条债务之所以是债：它让「工作树脏了多少」失真，别人接手时分不清哪些是本次改动。
+    现在脏活范围一眼可辨——`git status` 只剩本次提交。
+- 已忽略的纯生成物：LaTeX 中间文件（`*.aux`/`*.bcf`/`*.run.xml`/`*.synctex.gz`）与 `test-results/`。
 - 无密钥、无草稿/来源内容、无用户绝对路径进入提交或诊断产物；
   同步载荷这一条由 `sync_bundle_contract.rs` 逐字节守着（见 §六 R 清单与 ADR 0002 §5）。

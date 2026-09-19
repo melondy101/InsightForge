@@ -286,14 +286,16 @@ src-tauri/gen/schemas/
 /e2e/evidence/
 /e2e-report/
 
-# LaTeX/Pandoc 手册渲染的中间产物（另一条任务线的生成物，纯噪音，不入库）。
-# 只吞中间文件：报告源码（.md/.tex）与 PDF 成品仍留给「要不要入库」这个决定本身。
+# LaTeX/Pandoc 手册渲染的中间产物（纯噪音，任何位置都不入库）。
 *.aux
 *.bcf
 *.run.xml
 *.synctex.gz
-/OPTIMIZATION_REPORT*.out
-/OPTIMIZATION_REPORT*.toc
-/docs/*.out
-/docs/*.toc
+
+# 另一条任务线（Markdown→LaTeX→PDF 报告渲染、Foundry 早期原型）的一次性产物。
+# 已从仓库根与 docs/ 整体移到这里：一个文件都没删，反向 mv 即可回到原位；
+# 要不要正式入库仍归那条任务线的作者决定（见 docs/HANDOFF.md §八）。
+/.scratch/report-latex/
+/.scratch/foundry-redesign/
+
 /test-results/
