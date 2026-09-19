@@ -81,10 +81,17 @@ UUIDv4，源文件级身份是 `(source_id, rel_path)`——`rel_path` 本来就
 
 模型调用仍受五类动作白名单约束（铁律 2 不变），疑似连续正文照旧丢弃。
 
-> 实现状态（2026-09-19）：`crates/core/src/egress.rs` 目前只有 `EgressBundle`；
-> `SyncBundle` 类型、它的数量/字段明示与 `kind='sync'` 审计行**尚未落地**。
-> 在此之前，铁律 3 的这条修订没有机械约束——没有任何类型阻止同步载荷携带绝对路径。
-> 与服务端同工单交付（见 `docs/HANDOFF.md` 待办）。
+> 实现状态（2026-09-19）：`SyncBundle` 已落在 `crates/core/src/egress.rs`——
+> 白名单 `SYNCED_ASSETS` 逐表声明可出站的列，`DEVICE_LOCAL_COLUMNS`
+> （`path`/`root_path`/`abs_path`/`file_identity`/`baseline_*`）为黑名单，
+> `build` 命中即返回 `DeviceLocalColumn` 错误；`declared()` 给出「每张表几条、哪些字段」；
+> `AuditLogger::log_sync` 写入同一份 `ai_call_audit` 且 `kind = 'sync'`（迁移 0018），
+> 出站审计界面按 kind 区分显示。约束由 `tests/sync_bundle_contract.rs` 5 条用例守住。
+> 尚缺的是**发送方**：服务端与 `sync.push/pull` 命令还没实现，所以今天没有任何东西真的出站。
+>
+> 同一批工作把设备身份的铸造从「桌面启动时调一次」下沉到 `Repository::open`：
+> 触发器盖 `origin_device` 时若还没有 `device.id`，那一行会永久留下 NULL，
+> 而这台设备对这些行的写序就再也参与不了判定——存储层既然负责打点，就得负责先有身份。
 
 ### 6. 分发与更新
 

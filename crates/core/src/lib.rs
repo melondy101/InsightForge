@@ -38,7 +38,8 @@ pub use diagnostics::{
 pub use document_store::{DocumentError, DocumentStore};
 pub use drafts::{Conflict, DraftFile, DraftsError, DraftsService};
 pub use egress::{
-    AuditLogger, AuditRecord, EgressBundle, EgressBundleBuilder, EgressError, EgressFragment,
+    AuditLogger, AuditRecord, DeclaredTable, EgressBundle, EgressBundleBuilder, EgressError,
+    EgressFragment, SyncBundle, SyncRecord, DEVICE_LOCAL_COLUMNS, SYNCED_ASSETS,
 };
 pub use executor::{CancelToken, Executor, ExecutorError};
 pub use http_client::{AiHttpClient, HttpClientError, HttpRequest, HttpResponse, UreqAiHttpClient};

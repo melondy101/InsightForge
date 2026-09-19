@@ -18,6 +18,8 @@ export interface EgressBundle {
 
 export interface AuditRecord {
   id: string;
+  /** `ai` = 为 AI 出站；`sync` = 为多设备同步出站（ADR 0002 §5）。 */
+  kind: 'ai' | 'sync';
   model: string;
   createdAt: string;
   fragmentCount: number;

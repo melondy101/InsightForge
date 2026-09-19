@@ -216,6 +216,10 @@ impl Repository {
             return Err(RepositoryError::UnsupportedJournalMode(mode));
         }
         Migrator::new(migrations)?.run(&conn)?;
+        // 修订号由存储层统一打点（ADR 0002 §3），那前提就打点时就知道「我是谁」。
+        // 晚一步铸造，早先写入的行就永久带着 NULL 的 origin_device，
+        // 那台设备对这些行的写序永远无法参与判定。
+        ensure_device_identity(&conn)?;
 
         let (write_queue, jobs) = mpsc::channel::<QueueJob>();
         std::thread::Builder::new()
@@ -322,6 +326,29 @@ impl Repository {
             Ok(counts)
         })
     }
+}
+
+/// 保证本机设备身份在任何一次作者资产写入之前就存在（ADR 0002 §3）。
+///
+/// 触发器用 `app_setting['device.id']` 给每行盖 `origin_device`；这行不在的写入会
+/// 永久留下 NULL，而那台设备对这些行的写序就再也参与不了判定。
+/// 注入临时迁移列表的测试里没有 `app_setting` 这张表，那种库直接跳过。
+fn ensure_device_identity(conn: &Connection) -> Result<(), RepositoryError> {
+    let has_setting_table: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'app_setting'",
+        [],
+        |row| row.get(0),
+    )?;
+    if has_setting_table == 0 {
+        return Ok(());
+    }
+    conn.execute(
+        "INSERT INTO app_setting (key, value)
+         SELECT 'device.id', ?1
+         WHERE NOT EXISTS (SELECT 1 FROM app_setting WHERE key = 'device.id')",
+        rusqlite::params![crate::identity::new_id()],
+    )?;
+    Ok(())
 }
 
 /// 在一个 IMMEDIATE 事务里执行写闭包：成功提交，失败回滚。

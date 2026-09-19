@@ -214,7 +214,10 @@
     "model": "Model",
     "createdAt": "Created at",
     "status": "Status",
-    "auditTitle": "Audit Log"
+    "auditTitle": "Audit Log",
+    "kindSync": "Sync upload",
+    "sentRecords": "{{n}} records",
+    "sentFragments": "{{n}} fragments"
   },
   "export": {
     "nav": {

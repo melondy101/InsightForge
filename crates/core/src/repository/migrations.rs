@@ -275,6 +275,13 @@ BEGIN
     UPDATE ai_call_audit SET rev = OLD.rev + 1, origin_device = (SELECT value FROM app_setting WHERE key = 'device.id') WHERE id = OLD.id;
 END",
     },
+    // ADR 0002 §5：同步是第二类出站包，审计必须能把「为 AI 发的」和「为同步发的」
+    // 分开陈列——用户要能查清哪些内容因什么原因离开过本机。默认 'ai'，既有行语义不变。
+    Migration {
+        version: 18,
+        name: "add_kind_to_ai_call_audit",
+        sql: "ALTER TABLE ai_call_audit ADD COLUMN kind TEXT NOT NULL DEFAULT 'ai'",
+    },
 ];
 
 /// 版本化迁移执行器：校验编号后把未应用的迁移按序应用到数据库。

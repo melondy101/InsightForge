@@ -47,8 +47,12 @@ export function EgressView() {
         <ul className="egress-view__audit-list" data-el="egress-audit-list">
           {records.map((record) => (
             <li key={record.id} className="egress-view__audit-item" data-el="egress-audit-item">
-              <span>{record.model}</span>
-              <span>{record.fragmentCount} fragments</span>
+              <span>{record.kind === 'sync' ? t('egress.kindSync') : record.model}</span>
+              <span>
+                {record.kind === 'sync'
+                  ? t('egress.sentRecords', { n: record.fragmentCount })
+                  : t('egress.sentFragments', { n: record.fragmentCount })}
+              </span>
               <span>{record.createdAt}</span>
               <span>{record.status}</span>
             </li>

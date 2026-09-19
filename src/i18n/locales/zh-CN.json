@@ -214,7 +214,10 @@
     "model": "模型",
     "createdAt": "创建时间",
     "status": "状态",
-    "auditTitle": "审计日志"
+    "auditTitle": "审计日志",
+    "kindSync": "同步出站",
+    "sentRecords": "{{n}} 条记录",
+    "sentFragments": "{{n}} 个片段"
   },
   "export": {
     "nav": {
