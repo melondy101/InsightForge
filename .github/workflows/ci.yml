@@ -1,9 +1,11 @@
 name: CI
 
-# 桌面重写期间的持续集成（01 号票）：
+# 持续集成（每次 push / PR）：
 # - Windows + Ubuntu 各编译 Rust core（insightforge-core）并跑平台无关测试；
+# - 桌面 crate（insightforge-desktop，含 Tauri 命令层）只在 Windows 上编译与测试，
+#   因为只有它跑得动；缺了这条，src-tauri 的编译错误要等到本地才看得见。
 # - 前端门禁（lint / tsc / vitest / vite build）在 Ubuntu 上跑一次即可。
-# 打包签名发布不在本 workflow 范围（见票据 14）。
+# 打包、签名与发布在 release.yml（打 v* tag 触发）。
 
 on:
   push:
@@ -44,6 +46,28 @@ jobs:
       - name: cargo build (core)
         run: cargo build -p insightforge-core --locked
 
+  desktop:
+    name: Desktop crate (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+
+      - name: cargo clippy (desktop)
+        run: cargo clippy -p insightforge-desktop --all-targets -- -D warnings
+
+      - name: cargo test (desktop)
+        run: cargo test -p insightforge-desktop --locked
+
   frontend:
     name: Frontend gates
     runs-on: ubuntu-22.04
@@ -55,6 +79,16 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Version sources agree
+        shell: bash
+        run: |
+          pkg=$(bun -e "console.log(require('./package.json').version)")
+          cargo=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+          if [ "$pkg" != "$cargo" ]; then
+            echo "::error::package.json ($pkg) 与 workspace Cargo.toml ($cargo) 版本不一致"
+            exit 1
+          fi
 
       - name: eslint
         run: bun run lint

@@ -87,6 +87,9 @@ UUIDv4，源文件级身份是 `(source_id, rel_path)`——`rel_path` 本来就
   `latest.json` 由同一 pipeline 生成；updater endpoint 与签名公钥从 CI secret 注入，
   不再用 `tauri.conf.json` 里的 `localhost` 占位值。
 - 网页与服务端：同一 tag 触发部署 job，「部署即更新」，无独立版本通道。
+  现状：桌面侧 `release.yml` 已落地（tag → 打包 → minisign 签名 → Release + `latest.json`），
+  签名公钥已换成真实 minisign 公钥，endpoint 由 CI 注入；
+  网页侧部署 job **刻意尚未添加**——前端还没有 HTTP adapter，此刻部署等于发布一个不能用的壳。
 - 平台矩阵本期只承诺 Windows（与 `PRD.md:59` 一致）；Linux/macOS 不做承诺，
   `secrets.rs` 在非 Windows 拒绝服务的路径保持不变。
 

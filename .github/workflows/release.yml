@@ -1,0 +1,88 @@
+name: Release
+
+# 发版即打 tag：`v*` 触发 Windows 安装包构建、签名、上传到 GitHub Release，
+# 并生成 updater 清单 latest.json（ADR 0002 §7）。
+#
+# 版本号只有一个来源：workspace Cargo.toml 的 version（tauri.conf.json 故意不写 version，
+# 由桌面 crate 继承它；package.json 的 version 只是陪跑，CI 会拦住两者的漂移）。
+# 发版：改 Cargo.toml（并同步 package.json）→ 提交 → `git tag vX.Y.Z && git push --tags`。
+#
+# 需要的仓库 secrets：
+# - TAURI_SIGNING_PRIVATE_KEY：updater 的 minisign 私钥（公钥是公开数据，写在
+#   `src-tauri/tauri.conf.json`）。丢了私钥，已发布的客户端将永远收不到后续更新，
+#   所以请同时备份。
+# - TAURI_SIGNING_PRIVATE_KEY_PASSWORD：私钥口令（无口令则留空）。
+# - INSIGHTFORGE_CERT_THUMBPRINT：Windows 代码签名证书指纹（可选；缺省时安装包不签名，
+#   首次下载会有 SmartScreen 提示，但 updater 校验仍然生效）。
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  windows-installer:
+    name: Windows installer
+    runs-on: windows-latest
+    env:
+      # 桌面端向 GitHub Release 的 raw 地址要更新清单，仓库归属由 CI 注入而非写死。
+      INSIGHTFORGE_UPDATER_ENDPOINT: https://github.com/${{ github.repository }}/releases/latest/download/latest.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require updater signing key
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY 未配置。未签名的安装包会被客户端 fail-closed 拒绝，发布无意义。"
+            exit 1
+          fi
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Tag matches the single version source
+        shell: bash
+        run: |
+          pkg=$(bun -e "console.log(require('./package.json').version)")
+          cargo=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$pkg" != "$tag" ] || [ "$pkg" != "$cargo" ]; then
+            echo "::error::版本不一致 tag=$tag / Cargo.toml=$cargo / package.json=$pkg：安装包名写 tag、版本判断读 Cargo.toml，不一致会让客户端反复自更新。真源是 workspace Cargo.toml。"
+            exit 1
+          fi
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Frontend gates
+        run: |
+          bun run lint
+          bunx tsc --noEmit
+          bun run test
+
+      - name: Build, sign and publish
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          INSIGHTFORGE_CERT_THUMBPRINT: ${{ secrets.INSIGHTFORGE_CERT_THUMBPRINT }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 织知 InsightForge ${{ github.ref_name }}
+          releaseDraft: true
+          prerelease: false

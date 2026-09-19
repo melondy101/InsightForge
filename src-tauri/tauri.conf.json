@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "InsightForge",
-  "version": "0.1.0",
   "identifier": "app.insightforge.desktop",
   "build": {
     "beforeDevCommand": "bun run dev",
@@ -32,6 +31,7 @@
     "category": "Productivity",
     "shortDescription": "本地优先的反代写写作工作台",
     "longDescription": "织知 InsightForge —— 本地优先的桌面反代写写作工作台：知识库在你自己的文件夹里，AI 只递问题与证据，血肉由你亲手补。",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -40,14 +40,13 @@
       "icons/icon.ico"
     ],
     "windows": {
-      "certificateThumbprint": "${env.INSIGHTFORGE_CERT_THUMBPRINT}",
       "timestampUrl": "https://timestamp.digicert.com"
     }
   },
   "plugins": {
     "updater": {
       "endpoints": ["https://localhost/updater-dev.json"],
-      "pubkey": "dW50cnVzdGVkIGJ5IHNpbW9sZiBvciB0ZXN0",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJDQUM5NjQxRTc1RjI2NjkKUldScEpsL25RWmFzdkZwMlBjNVNjdEF4aW1tcFllQkhZSU1FVkNiZGU0bmNhMGdRbUdiTHhmOFgK",
       "windows": {
         "installMode": "passive"
       }

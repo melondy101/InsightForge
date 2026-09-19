@@ -549,37 +549,6 @@ fn export_write_clipboard(
         })
 }
 
-/// Updater 签名公钥解析（纯函数，注入 env 值与是否 release，便于确定性测试）。
-///
-/// - 显式提供公钥时一律优先使用（不区分 debug/release）。
-/// - 未提供时：release 构建返回 `None`（调用方据此 fail-closed panic）；
-///   debug 构建回退到内置测试公钥，保证本地开发可运行。
-fn resolve_updater_pubkey(env_value: Option<String>, is_release: bool) -> Option<String> {
-    match env_value {
-        Some(pk) if !pk.is_empty() => Some(pk),
-        _ => {
-            if is_release {
-                None
-            } else {
-                Some("dW50cnVzdGVkIGJ5IHNpbW9sZiBvciB0ZXN0".to_string())
-            }
-        }
-    }
-}
-
-/// Updater 签名公钥解析。
-/// - release 构建必须由环境变量 INSIGHTFORGE_UPDATER_PUBKEY 提供，缺失即 panic（fail-closed）。
-/// - debug 构建回退到内置测试公钥，保证本地开发可运行。
-fn updater_pubkey() -> String {
-    match resolve_updater_pubkey(
-        std::env::var("INSIGHTFORGE_UPDATER_PUBKEY").ok(),
-        cfg!(not(debug_assertions)),
-    ) {
-        Some(pk) => pk,
-        None => panic!("INSIGHTFORGE_UPDATER_PUBKEY must be set in release builds"),
-    }
-}
-
 /// 把来源索引事件转成脱敏的结构化日志条目：只记来源 id 与计数，绝不记 rel_path / message
 ///（可能泄露用户文件路径或错误细节）。事件名稳定为 `source.<stage>`。
 fn log_source_event(log: &mut EventLog, event: &SourceEvent) {
@@ -640,11 +609,9 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard::init())
-        .plugin(
-            tauri_plugin_updater::Builder::new()
-                .pubkey(updater_pubkey())
-                .build(),
-        )
+        // 公钥与 endpoint 都由 `tauri.conf.json` / build.rs 在构建期决定：
+        // 装到用户机器上的应用没有那些环境变量可读。
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
@@ -816,51 +783,39 @@ pub fn run() {
 
 #[cfg(test)]
 mod updater_tests {
-    use super::resolve_updater_pubkey;
-
-    const TEST_FALLBACK: &str = "dW50cnVzdGVkIGJ5IHNpbW9sZiBvciB0ZXN0";
-
-    /// debug 构建缺少公钥时，返回内置测试回退公钥（不 panic）。
-    #[test]
-    fn debug_missing_pubkey_uses_test_fallback() {
-        let pk = resolve_updater_pubkey(None, false);
-        assert_eq!(pk.as_deref(), Some(TEST_FALLBACK));
-    }
-
-    /// release 构建缺少公钥时，返回 None（调用方据此 fail-closed panic，不回退）。
-    #[test]
-    fn release_missing_pubkey_is_none_not_fallback() {
-        let pk = resolve_updater_pubkey(None, true);
-        assert!(
-            pk.is_none(),
-            "release build must not fall back to a test key"
-        );
-    }
-
-    /// 已设置公钥时，无论 debug/release 都优先使用环境变量值。
-    #[test]
-    fn pubkey_env_value_wins_over_fallback() {
-        assert_eq!(
-            resolve_updater_pubkey(Some("env-pubkey".into()), false),
-            Some("env-pubkey".into())
-        );
-        assert_eq!(
-            resolve_updater_pubkey(Some("env-pubkey".into()), true),
-            Some("env-pubkey".into())
-        );
-    }
-
-    /// 空白公钥视为未提供，走 debug 回退 / release fail-closed。
-    #[test]
-    fn blank_pubkey_treated_as_missing() {
-        assert_eq!(
-            resolve_updater_pubkey(Some("".into()), false),
-            Some(TEST_FALLBACK.into())
-        );
-        assert!(resolve_updater_pubkey(Some("".into()), true).is_none());
-    }
+    use serde_json::Value;
 
     // ---- tauri.conf.json 静态校验（防止 schema 回退）----
+
+    /// `tauri.conf.json` 里那把公钥的 base64 前缀，即 "untrusted comment: minisign public key:"。
+    const MINISIGN_PUBKEY_PREFIX: &str = "dW50cnVzdGVkIGNvbW1lbnQ6";
+
+    /// 版本号只有一处真源：workspace Cargo.toml。配置文件里再写一遍，就会有一处忘记改，
+    /// 于是安装包名与实际版本不一致，客户端反复自更新。
+    #[test]
+    fn config_does_not_second_guess_the_version() {
+        let conf = load_tauri_conf();
+        assert!(
+            conf.get("version").is_none(),
+            "tauri.conf.json must not declare its own version; got {}",
+            conf["version"]
+        );
+    }
+
+    /// 配置文件里不许出现 `${env.VAR}`：`${env.}` 只对少数字段生效，其余原样嵌入二进制——
+    /// endpoint 会让 updater 反序列化 panic，证书指纹会让 signtool 把占位符当证书名而打包失败。
+    /// 需要按环境变化的值一律在 build.rs 注入 TAURI_CONFIG。
+    #[test]
+    fn config_has_no_uninterpolated_env_placeholders() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let raw =
+            std::fs::read_to_string(std::path::Path::new(manifest_dir).join("tauri.conf.json"))
+                .expect("tauri.conf.json readable");
+        assert!(
+            !raw.contains("${env."),
+            "tauri.conf.json still contains a ${{env.*}} placeholder; move it into build.rs"
+        );
+    }
 
     fn load_tauri_conf() -> serde_json::Value {
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
@@ -891,15 +846,24 @@ mod updater_tests {
         );
     }
 
-    /// plugins.updater.pubkey 必须存在（UpdaterConfig 反序列化必填字段）。
+    /// 仓库里发布的公钥必须是真 minisign 公钥。
+    /// 占位值一旦进了正式构建，客户端会验签失败——而失败发生在用户点「更新」之后。
     #[test]
-    fn updater_pubkey_field_present() {
+    fn shipped_updater_pubkey_is_a_real_minisign_key() {
         let conf = load_tauri_conf();
-        let pubkey = &conf["plugins"]["updater"]["pubkey"];
+        let Value::String(pubkey) = &conf["plugins"]["updater"]["pubkey"] else {
+            panic!(
+                "plugins.updater.pubkey must be a string, found: {}",
+                conf["plugins"]["updater"]["pubkey"]
+            );
+        };
         assert!(
-            pubkey.is_string(),
-            "plugins.updater.pubkey must be a string, found: {}",
-            pubkey
+            pubkey.starts_with(MINISIGN_PUBKEY_PREFIX),
+            "pubkey must be a minisign public key, found: {pubkey}"
+        );
+        assert!(
+            pubkey.len() > MINISIGN_PUBKEY_PREFIX.len() + 40,
+            "pubkey body looks truncated"
         );
     }
 
@@ -943,20 +907,6 @@ mod updater_tests {
             endpoints[0].as_str(),
             Some("https://localhost/updater-dev.json"),
             "committed endpoints must stay as dev placeholder; real URL is injected at release build"
-        );
-    }
-
-    /// 提交的 tauri.conf.json 的 pubkey 必须是内置测试回退公钥，
-    /// 真实公钥在 release 构建时由 INSIGHTFORGE_UPDATER_PUBKEY 覆盖。
-    #[test]
-    fn committed_pubkey_is_test_fallback() {
-        let conf = load_tauri_conf();
-        let pubkey = conf["plugins"]["updater"]["pubkey"]
-            .as_str()
-            .expect("plugins.updater.pubkey must be a string");
-        assert_eq!(
-            pubkey, TEST_FALLBACK,
-            "committed pubkey must remain the test fallback; real key is injected at release build"
         );
     }
 }

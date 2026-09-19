@@ -56,6 +56,12 @@ diagnostics.snapshot / diagnostics.event_log   # 脱敏诊断快照 / 结构化�
 
 ## 六、发布构建
 
-- 前端：`bun run build`（Vite 构建到 `src-tauri/dist`）。
+- 前端：`bun run build`（Vite 构建到仓库根 `dist`，`tauri.conf.json` 的 `frontendDist` 指向它）。
 - 桌面版：`bun run tauri dev`（开发模式）；`bun run tauri build`（打包桌面应用）。
+- **版本号只有一个真源：workspace `Cargo.toml` 的 `version`**。`src-tauri/tauri.conf.json` 刻意不写
+  `version`（由桌面 crate 继承），`package.json` 的 `version` 必须与真源一致——CI 有拦截步骤。
+- 发布：改 `Cargo.toml`（并同步 `package.json`）→ 提交 → `git tag vX.Y.Z && git push --tags`，
+  `release.yml` 自动出 Windows 安装包（MSI/EXE）、签名并生成 updater 的 `latest.json`。
+  需要仓库 secrets `TAURI_SIGNING_PRIVATE_KEY`（+ `_PASSWORD`）；缺签名密钥时流水线**主动失败**，
+  不发无法安装的包。
 - 提交前门禁：前端 `bun run test` / `bun run lint` / `bunx tsc --noEmit`；Rust `cargo test` / `cargo build` / `cargo fmt --check` / `cargo clippy -- -D warnings`。
