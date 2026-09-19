@@ -45,7 +45,28 @@ export function useSources(): SourcesModel {
 
   const refresh = useCallback(async () => {
     try {
-      setSources(await sourcesApi.list());
+      const rows = await sourcesApi.list();
+      setSources(rows);
+      // 列表是进度的真相：仍在索引的来源用列表数值兜底（挂载前错过的事件），
+      // 已落定的来源一律抹掉——少一条结束事件也不会留下卡住的进度条。
+      setProgress((current) => {
+        const next: Record<string, BackfillProgress> = {};
+        for (const row of rows) {
+          if (row.status !== 'indexing') continue;
+          const fromList = row.progress
+            ? { processed: row.progress.processed, totalFiles: row.progress.totalFiles }
+            : undefined;
+          const fromEvents = current[row.id];
+          const live =
+            fromEvents && fromList
+              ? fromEvents.processed >= fromList.processed
+                ? fromEvents
+                : fromList
+              : (fromList ?? fromEvents);
+          if (live) next[row.id] = live;
+        }
+        return next;
+      });
     } catch (err) {
       setError(toCommandError(err));
     }

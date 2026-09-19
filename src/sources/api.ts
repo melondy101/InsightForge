@@ -16,6 +16,16 @@ export interface SourceSummary {
   fileCount: number;
   ignoreGlobs: string[];
   lastSyncedAt: string | null;
+  /** 进行中的补扫进度；空闲或已落省时为 null。 */
+  progress: SourceJobProgress | null;
+}
+
+/** 进行中的补扫进度（Rust JobSnapshot 的薄投影）。 */
+export interface SourceJobProgress {
+  phase: 'indexing' | 'completed' | 'cancelled' | 'failed';
+  processed: number;
+  totalFiles: number;
+  fragmentCount: number;
 }
 
 /** sources://progress 事件载荷（Rust SourceEvent 的 serde 标签形式）。 */
