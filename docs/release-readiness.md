@@ -1,7 +1,7 @@
-# Release Readiness — 织知 InsightForge 桌面版
+# Release Readiness — 织知 InsightForge
 
-> 文档性质：**事实源（source of truth）**，记录当前 `main` 在 `3139156` 的真实状态。
-> 本文件随本分支的进展持续更新；所有“已验证”结论都以可复跑命令与产物为依据，
+> 文档性质：**事实源（source of truth）**，记录分支 HEAD 的真实状态与验证边界。
+> 本文件随分支进展持续更新；所有“已验证”结论都以可复跑命令与产物为依据，
 > “未运行”**不会**被写成“通过”。
 > 产品定位不可改变：本地优先、反代写、Tauri 2 + React/TS/Vite + Rust 核心 + SQLite/FTS5。
 
@@ -11,17 +11,19 @@
 
 | 项 | 值 | 来源 / 命令 |
 | --- | --- | --- |
-| 基线 commit | `3139156` — `docs: reconcile desktop delivery status` | `git rev-parse HEAD` |
-| 工作分支 | `codex/desktop-release-readiness`（自 main 切出） | 本任务 |
-| 产品版本（构建产物 / package / CHANGELOG） | `0.1.0` | `tauri.conf.json` / `package.json` / `CHANGELOG.md` |
-| ARCHITECTURE 文档版本 | `1.0.0-draft`（与构建版本不一致，见 §6） | `docs/ARCHITECTURE.md` |
+| 基线 commit | `300b6b5` — `chore(repo): park one-off task-line artifacts under .scratch instead of docs`（其后的提交只动文档与检索片段渲染，不改命令面） | `git rev-parse --short HEAD` |
+| 工作分支 | `feat/ui-v1-implement`（自 `main` 切出；**全部 commit 仍在本地，未 push**） | `git branch --show-current` |
+| 历史基线 | `3139156`（`codex/desktop-release-readiness` 分支的 Phase A–F 收尾，已并入本分支线） | `docs/HANDOFF.md` §一 |
+| 产品版本（构建产物 / package / CHANGELOG） | `0.1.0` | workspace `Cargo.toml` / `package.json` |
+| ARCHITECTURE 文档版本 | `1.0.0-draft`（与构建版本不一致，见 §5 D2） | `docs/ARCHITECTURE.md` |
 | 链接 SQLite 版本（实测） | `3.53.2`（version_number `3053002`） | `rusqlite::version()`，bundled `libsqlite3-sys 0.38.2` |
 | Rust | 1.90.0 | `rustc --version` |
 | Node/Bun | Node 22.23.2 / Bun 1.3.11 | `node -v` / `bun -v` |
-| 前端测试 | **127 passed** | `bun run test`（`vitest run`） |
+| 前端测试 | **177 passed（21 文件）** | `bun run test`（`vitest run`） |
 | 前端 lint / tsc / build | **全绿** | `bun run lint` / `bunx tsc --noEmit` / `bun run build` |
-| Rust 测试 | **全绿（core 113 + desktop 10 = 123）** | `cargo test --workspace` |
-| Rust fmt / clippy | **全绿** | `cargo fmt --check` / `cargo clippy -- -D warnings` |
+| Rust 测试 | **185 passed** | `cargo test --workspace` |
+| Rust fmt / clippy | **全绿** | `cargo fmt --all -- --check` / `cargo clippy --workspace --all-targets -- -D warnings` |
+| 界面实测 | 9 个视图 × 桌面/移动两种视口，真实浏览器跑通，横向溢出 0 | Playwright（手动，非 CI） |
 
 > 质量门禁运行环境：Windows 11 + cmd.exe/Git Bash 本地机器。**本机器无法执行
 > 真实签名安装包、WebView2 端到端、联网 AI 请求、安装→升级链路**（E2E 规格已就绪但受探针门控为 BLOCKED）。
@@ -98,6 +100,22 @@
 
 > 每个能力均先写失败测试 → 最小实现 → 转绿；任意时刻不超过一个失败测试。
 
+### 4.1 2026-09-19 一轮：ADR 0002 的客户端侧 + 技术债清偿
+
+| 能力 | 机械约束在哪 | 关键文件 |
+| --- | --- | --- |
+| 三类 runtime 的命令通道（tauri / http / fake） | `src/native/command-client.test.ts`；未配置浏览器 fail-fast `runtime_unconfigured` | `src/native/command-client.ts` |
+| 版本取自单一真源，不再直连 Tauri API | 同上 + CI 的 tag/Cargo/package.json 一致性步骤 | `CommandClient.appVersion()` |
+| `SyncBundle`：同步载荷结构上带不了绝对路径 | `crates/core/tests/sync_bundle_contract.rs`（5 条，逐字节断言） | `crates/core/src/egress.rs` |
+| 设备登记与撤销（撤销不可逆） | `crates/core/tests/devices_contract.rs`（11 条） | `crates/core/src/devices.rs` |
+| 陪练前端入口（三轮协议、无「补全」按钮） | `src/coach/api.test.ts` 锁命令名与参数键；`coach_contract.rs` 8 条 | `src/coach/*`、`App.tsx` |
+| 同步间隔真正生效（5/15/30，默认 15） | `sync_interval_contract.rs`（11 条）+ `store.rs` 断言 KV 前缀在 SELECT 里 | `crates/core/src/sources.rs` |
+| 每个 Rust 错误码都有本地化文案 | `src/ui/error-text.test.ts` + `i18n.test.ts`（双语键对等、静态 `t()` 缺键即红） | `src/ui/error-text.ts`、`src/i18n/locales/*` |
+| 样式双向契约（用到的类要有定义，样式表不留死规则） | `src/styles.test.ts` | `src/styles.css` |
+| 网页「部署即更新」 | `deploy-web.yml`：缺 `INSIGHTFORGE_WEB_API_BASE` 即失败 + 产物内断言 | `.github/workflows/deploy-web.yml` |
+
+仍缺的只有服务端本体：`insightforge-server`、`sync.push/pull` 发送方、设备管理界面。
+
 ---
 
 ## 5. 已知未验证／历史过期声明（分类 D）
@@ -111,6 +129,13 @@
 - **D4（已澄清）**：`e2e/golden-path.spec.ts` 早期为占位；本分支已改写为真实 `data-el` 选择器 + 断言，
   但仍受 `INSIGHTFORGE_E2E_RUN` + WebView2 探针门控，无 WebView2 时明确 BLOCKED，不伪造 PASSED
   （见 `e2e/README.md`）。安装→升级实测仍依赖 C1–C3 与真实环境，未执行。
+- **D5（已修正 2026-09-19）**：`SECURITY.md` 整篇描述的是**已冻结的旧 Web 版**——drizzle/Postgres、
+  Next.js 16.3.0、`/api/discover` 等三条代转路由、`src/lib/llm/*`、localStorage 存 key。
+  这些路径与依赖在当前仓库里都不存在（`ls src/lib` 无此目录，`package.json` 无 next/drizzle），
+  其中「API key 走 `process.env` 或浏览器 localStorage」更与铁律「密钥只进 OS 凭据库」直接冲突。
+  已改写为桌面 + ADR 0002 的当前基线，旧版审查结论不再冒充现状。
+- **D6（已修正 2026-09-19）**：`CONTRIBUTING.md` §8 同样残留「代转路由的 BYOK key 仅在单次请求内存中使用」，
+  已改为当前的凭据模型。
 
 ---
 
@@ -132,3 +157,5 @@
 | 2026-09-02 | 基线门禁全跑 | 全绿（前端 119 / Rust 全绿） | 发现 updater 测试偶发 flaky，已修复（见 git log） |
 | 2026-09-02 | SQLite 版本实测 | 3.53.2 | 满足 ARCHITECTURE “≥3.51.3” 要求 |
 | 2026-09-03 | 全门禁复跑（Phase A–F 收尾） | 全绿（前端 127 / Rust 123；clippy `-D warnings` / fmt / build 通过） | 新增冲突三选一、孤儿草稿登记、临时文件清理、DB 完整性降级、脱敏诊断快照/事件日志、E2E 探针与发布 Runbook |
+| 2026-09-19 | 全门禁复跑（ADR 0002 客户端侧 + 技术债清偿） | 全绿（前端 177 / Rust 185；`tsc` 0 错、`eslint` 0 警、`vite build`、`cargo fmt --check`、`cargo clippy --workspace --all-targets -- -D warnings`） | SyncBundle、devices、部署即更新、sync_interval 生效、coach 前端入口、错误码文案、样式双向契约、版本号收进 seam；工作树未跟踪归 0 |
+| 2026-09-19 | 知识库洁癖审查（文档 ↔ 代码对账） | 全门禁重跑通过；真浏览器实测检索卡片（桌面/移动两视口，无溢出、无脚本执行） | 修掉检索证据卡的 HTML 注入面并加全仓守门；`SECURITY.md` 从旧 Web 版重写为当前基线；ARCHITECTURE / README / CONTEXT / CONTRIBUTING / CHANGELOG / HANDOFF / Runbook 全部对齐 |

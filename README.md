@@ -2,7 +2,10 @@
 
 > 本地优先的桌面反代写写作工作台 —— AI 只递问题与证据，血肉由你亲手补。
 
-> 桌面版重写已合入 `main`，目前处于 Windows 个人自用验证阶段。旧 Web 版已冻结，不再演进；需求、路线图和架构见 [docs/PRD.md](./docs/PRD.md)、[docs/ROADMAP.md](./docs/ROADMAP.md) 与 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
+> 桌面版重写已合入 `main`，目前处于 Windows 个人自用验证阶段。旧 Web 版（Next.js/Postgres）已冻结、不再演进；
+> 新的网页形态是 [ADR 0002](./docs/adr/0002-web-remote-sync-service.md) 的「同一份 React 代码 + HTTP 命令通道」，
+> 它依赖的 `insightforge-server` 尚未实现，所以网页目前只是可构建、可部署，但没有后端可连。
+> 需求、路线图和架构见 [docs/PRD.md](./docs/PRD.md)、[docs/ROADMAP.md](./docs/ROADMAP.md) 与 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
 
 「织知」不替你写，而是做三件市面工具都不做的事：
 
@@ -66,11 +69,22 @@ bun run tauri build          # 打包桌面应用
 
 桌面版不要求 `.env`。AI 密钥通过设置界面存入 Windows Credential Manager，不进入代码仓库。
 
-| 设置项 | 说明 |
+| 应用内设置项 | 说明 |
 | --- | --- |
 | AI Base URL | OpenAI 兼容 API base，默认 `https://api.openai.com/v1` |
 | AI Model | 模型名，默认 `gpt-4o-mini` |
 | AI Key | BYOK 密钥，存系统凭据库，应用内显示为已配置或未配置 |
+
+构建期变量（只有构建网页版 / 发布包时才需要，本地桌面开发用不到）：
+
+| 变量 | 用途 | 详细行为 |
+| --- | --- | --- |
+| `VITE_API_BASE_URL` | 网页版 HTTP 命令通道的服务端地址 | 缺省时网页每条命令 fail-fast 为 `runtime_unconfigured` |
+| `VITE_BASE_PATH` | 部署到 Pages 项目子路径（`/Repo/`）时的 base | 缺省 `'/'` |
+| `INSIGHTFORGE_WEB_API_BASE` | GitHub 仓库 **variable**，CI 用它注入上面的地址 | 未配置时 `deploy-web.yml` 主动失败，不发壳 |
+| `INSIGHTFORGE_UPDATER_ENDPOINT`、`TAURI_SIGNING_PRIVATE_KEY`（+ `_PASSWORD`）、`INSIGHTFORGE_CERT_THUMBPRINT` | 桌面发布构建 | 见 `docs/RELEASE-RUNBOOK.md` §1 |
+
+`bun run build` 前不需要任何变量；`bun run tauri build`（release）缺 updater 端点会直接 panic（设计如此）。
 
 ## 开发者辅助：Agent Skills
 

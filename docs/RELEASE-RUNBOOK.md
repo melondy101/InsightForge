@@ -1,7 +1,7 @@
-# Release Runbook — 织知 InsightForge 桌面版
+# Release Runbook — 织知 InsightForge
 
-> 适用范围：把分支 `codex/desktop-release-readiness` 推进到「可长期个人使用、可诊断、可恢复、
-> 可复跑验证」的 Windows 桌面应用，并准备 1.0 发布就绪工程。
+> 适用范围：把桌面版（Windows 安装包 + updater）与网页版（静态站「部署即更新」）推进到
+> 「可长期个人使用、可诊断、可恢复、可复跑验证」，并准备 1.0 发布就绪工程。
 > 本文件只描述**发布工程准备**，不做任何发布动作。
 >
 > **不可逾越的红线（贯穿始终）**：绝不推送 / 开 PR / 发布 / 伪造签名 / 伪造升级。
@@ -20,6 +20,7 @@ minisign 签名 → 上传 GitHub Release 草稿 → 自动生成 `latest.json`�
 | C2 | updater 清单托管 | 端点由 release.yml 注入 `https://github.com/<repo>/releases/latest/download/latest.json`；**前提是该仓库真的被推送并有 Release** | 本地 `tauri build` 缺 `INSIGHTFORGE_UPDATER_ENDPOINT` → `build.rs` panic；装了包的客户端收不到更新 |
 | C3 | updater minisign 私钥 | 密钥对已生成，公钥已随 `tauri.conf.json` 进仓；**私钥目前只在 `C:\Users\20145\AppData\Local\Temp\insightforge-updater.key`** | 未配置 `TAURI_SIGNING_PRIVATE_KEY` → release.yml 第一步就 fail-closed 退出；产不出 `.sig` 的包会被客户端拒绝 |
 | C4 | 安装 → 升级 E2E | 未执行 | 依赖 C3 上线与真实环境 |
+| C5 | 网页端后端地址（**仓库 variable，不是 secret**） | 未提供 | `deploy-web.yml` 第一步就 fail-closed：`insightforge-server` 还不存在，静态站部署出去只能连到一个不存在的后端，所以宁可不发 |
 
 **用户待办（明确交接）**：
 1. **立刻**把私钥内容存入 GitHub 仓库 secret `TAURI_SIGNING_PRIVATE_KEY`，并在仓库之外再备份一份
@@ -28,6 +29,8 @@ minisign 签名 → 上传 GitHub Release 草稿 → 自动生成 `latest.json`�
 2. 需要消除 SmartScreen 提示时，采购证书并配 `INSIGHTFORGE_CERT_THUMBPRINT`（可选）。
 3. 推送分支与 tag（本仓库当前所有 commit 仍在本地）。
 4. 在真实 Windows 上跑「安装旧版 → 升级新版」E2E（见 `e2e/manual/verify.ps1`）。
+5. 服务端可用后，把它的地址配成仓库 variable `INSIGHTFORGE_WEB_API_BASE`（Settings → Secrets and
+   variables → Actions → **Variables**）。在那之前 `deploy-web.yml` 保持失败是**预期行为**。
 
 ---
 
@@ -40,6 +43,16 @@ minisign 签名 → 上传 GitHub Release 草稿 → 自动生成 `latest.json`�
 | `INSIGHTFORGE_UPDATER_ENDPOINT` | 真实 updater 清单地址（C2） | release 构建 panic（空值与 dev 占位值都算缺）；dev 构建不受影响 |
 | `TAURI_SIGNING_PRIVATE_KEY`（+ `_PASSWORD`） | 给 `.msi`/`.exe` 产 minisign 签名 | Tauri CLI 报「有公钥无私钥」，构建失败 |
 | `INSIGHTFORGE_CERT_THUMBPRINT` | Authenticode 代码签名（C1） | 只发 `cargo:warning`，照常出包，包不签名 |
+
+网页侧构建变量（`.github/workflows/deploy-web.yml`，同一 `v*` tag 触发）：
+
+| 变量 | 位置 | 用途 | 未设置时 |
+|------|------|------|----------|
+| `INSIGHTFORGE_WEB_API_BASE` | 仓库 **variable**（非 secret） | 构建期注入成前端 `VITE_API_BASE_URL`，即 HTTP adapter 的服务端地址 | 第一步 `Require the sync service address` 失败，**不部署** |
+| `VITE_BASE_PATH` | 构建环境 | 部署到 Pages 项目子路径（`/Repo/`）时的 base | 缺省 `'/'`，根路径部署不需要 |
+
+守护方式：构建完 `grep -qF "$VITE_API_BASE_URL" dist/assets/*.js` ——地址没真的烘进产物就失败，
+避免「部署成功但网页连不上任何后端」。
 
 机制上有一条必须记住的约束：**`tauri.conf.json` 里的 `${env.VAR}` 不会对所有字段插值**，
 未插值的字符串会原样进二进制——endpoint 会让 updater 插件反序列化 panic，

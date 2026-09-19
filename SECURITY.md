@@ -1,49 +1,37 @@
 # 安全说明 / Security Notes
 
-本文件记录 InsightForge / 织知 的安全审查基线与已接受风险，便于审计留痕。
-最近审查：多轮静态安全审查（密钥、危险 API、注入面、SSRF、依赖、错误泄露、输入边界）。
+本文件记录织知 InsightForge 的安全审查基线与**明确接受**的残余风险，便于审计留痕。
+
+> 基线对应**桌面版 + [ADR 0002](./docs/adr/0002-web-remote-sync-service.md) 的客户端侧**（2026-09-19 重写）。
+> 旧 Web 版（Next.js / Postgres / drizzle / 三条 LLM 代转路由 / localStorage 存 key）已冻结，
+> 那些代码与依赖在当前仓库里不存在，其审查结论不再冒充现状；差异见 `docs/release-readiness.md` §5 D5。
+> 表中每条都给了可复跑依据——写不出依据的一律不标 ✅。
 
 ## 当前基线
 
-| 维度 | 状态 |
-|---|---|
-| 硬编码密钥 / 凭证 | ✅ 无（API key 仅走 `process.env` 服务端或浏览器 localStorage，绝不入共享 DB / 日志） |
-| 危险 API（eval / dangerouslySetInnerHTML / innerHTML / document.write） | ✅ 无 |
-| 抑制标记（@ts-ignore / eslint-disable） | ✅ 无 |
-| SQL 注入面 | ✅ 无（DB 层全用类型化 drizzle 查询，无原始 SQL / 模板拼接） |
-| 错误信息泄露 | ✅ 无（`error.tsx` 仅在 `NODE_ENV==='development'` 显示详情，生产只给通用文案） |
-| 运行时高危依赖 | ✅ 无（`next` 已升至 16.3.0，清除 SSRF / 图片优化 DoS / Server Function 泄露及 postcss/sharp 高危） |
-| 依赖审计（npm audit） | ✅ **0 vulnerabilities**（移除 drizzle-kit CLI 依赖后，废弃 @esbuild-kit 链一并消除） |
-| 代转路由滥用防护 | ✅ 有（三条 LLM 代转路由按 IP 滑动窗口限流，20 次/分，超限 429+Retry-After） |
+| 维度 | 状态 | 依据 |
+|---|---|---|
+| 凭据存放 | ✅ API Key 只进 OS 凭据库（Windows Credential Manager），非 Windows 平台明确拒绝服务；不入 SQLite、不入日志、不入任何出站包、服务端不持有不代理 | `crates/core/src/secrets.rs` + `cargo test -p insightforge-core --test secrets` |
+| renderer 权限面 | ✅ 主窗口只有 `core:default` + `dialog:default`；前端仅能调 50 条窄而有类型的业务命令，无任意 FS / 网络 / SQL 能力 | `src-tauri/capabilities/default.json`、命令清单见 `docs/ARCHITECTURE.md` §4 |
+| HTML 注入面 | ✅ 已修（2026-09-19）：检索证据卡的片段此前经 `dangerouslySetInnerHTML` 渲染，知识库文件里的 `<img onerror=…>` 会在 renderer 里执行；现在按 `<mark>` 标记切分后一律当文本渲染，并有一条全仓守门测试禁止再出现 `dangerouslySetInnerHTML`。导出 HTML 走 `rehype-sanitize` + 标签/属性白名单，内嵌 Markdown HTML 默认禁用 | `src/search/snippet.ts` + `src/search/snippet.test.ts`、`src/export/export.ts` |
+| SQL 注入面 | ✅ 用户可控的值一律走绑定参数（`rusqlite::params!` / `params_from_iter`）。拼进 SQL 的只有编译期常量：表名与列名来自 `SYNCED_ASSETS` / `SOURCE_COLUMNS` 常量（且有守卫拒绝设备本地列混进白名单）、`NOT IN (?,?,…)` 里拼的是占位符个数而非路径 | `crates/core/src/{store,repository/mod,egress}.rs`，`egress.rs` 的守卫由 `tests/sync_bundle_contract.rs` 拦下 |
+| 出站最小化 | ✅ 只有 `EgressBundle`（AI）与 `SyncBundle`（同步）两类载荷；同步载荷的可出站列是逐表白名单，`path`/`root_path`/`abs_path`/`file_identity`/`baseline_*` 在黑名单里，构建命中即报错；发送前明示数量 | `crates/core/src/egress.rs` + `tests/sync_bundle_contract.rs`（5 条） |
+| 知识库只读 | ✅ 源文件写入在 Rust 侧被拒绝；symlink / junction 逃逸出根目录被拒且源文件 hash 不变 | `cargo test -p insightforge-core --test sources` |
+| 派生数据可重建 | ✅ 删索引库不丢作者资产（引用快照、思考卡、保存基线、陪练轮次不是缓存） | `tests/schema.rs`、`tests/document_store_contract.rs` |
+| 诊断产物脱敏 | ✅ 快照只含版本/平台/SQLite/迁移/完整性/表计数；事件日志字段级替换禁记清单命中值；两者都不含 Key、正文与本机路径 | `crates/core/src/diagnostics.rs` + `--test` 内联用例 |
+| 错误信息 | ⚠️ `CommandError.message` 会透出底层字符串（可能含本机路径）。仅应用内对本人可见，不进诊断、不进审计；接入任何遥测前必须先过滤（`docs/HANDOFF.md` R4） | `src/ui/error-text.ts` |
+| 静默覆盖 | ✅ 本机与跨设备冲突都走三选一，绝不静默覆盖；设备撤销不可逆 | `crates/core/src/drafts.rs`、`tests/devices_contract.rs` |
 
-## 已实施的加固
+## 明确接受的残余风险 / 待办
 
-- **BYOK 服务端代转 SSRF 防护**：`sanitizeIncomingConfig`（`src/lib/llm/config.ts`）在协议白名单之外，
-  用 `isBlockedHost` 拦截环回、link-local / 云元数据（169.254.169.254）、RFC1918 私网、IPv6 本地地址、
-  以及 `.internal/.local/.lan` 后缀。附 9 个单元测试（`src/lib/llm/config.test.ts`）。
-- **代转路由输入边界统一**：`/api/discover`、`/api/skeleton`、`/api/skeleton/expand` 对所有用户可控字段做
-  类型校验 + 长度截断（标题 300、identity 800、单条 fragment 2000、数组限量），防止无界文本流入 prompt。
-- **密钥零留存**：代转路由的 BYOK key 仅在单次请求内存中使用、用完即弃，绝不落盘 / 写日志。
-- **代转路由速率限制（开放代理滥用防护）**：`/api/discover`、`/api/skeleton`、`/api/skeleton/expand`
-  在入口按客户端 IP（`x-forwarded-for` 首段 / `x-real-ip`，缺失则回退全局桶）做滑动窗口限流，
-  默认 **每 IP 每分钟 20 次**，超限返回 `429` + `Retry-After`。实现见 `src/lib/api/rate-limit.ts`
-  （零依赖内存滑动窗口，含惰性过期清理与 Map 上限保护），附 9 个单元测试
-  （`src/lib/api/rate-limit.test.ts`）。**局限**：内存计数不跨 serverless 实例共享，属「尽力而为的
-  成本护栏」而非强一致配额；横向扩容需强配额时可无缝替换为 Redis/Upstash（接口不变）。
-
-## 已解决：移除 drizzle-kit CLI 依赖（原 4 个 moderate 已清零）
-
-早前版本依赖 `drizzle-kit@0.31.10`（devDep），其通过废弃的 `@esbuild-kit/*` 深层锁死
-`esbuild@0.18.20`，触发 4 个 moderate（esbuild dev-server advisory GHSA-67mh-4wv8-2f99）。
-由于该包已废弃且将 esbuild 锁为精确版本，`overrides`（顶层与嵌套均实测）无法穿透。
-
-**解决方案**（零数据层风险）：
-- 移除 `drizzle-kit` devDependency（`npm audit` 随之归零）。
-- `db:migrate` 改用 `scripts/db-migrate.mjs`，基于已在依赖中、无漏洞的
-  `drizzle-orm/postgres-js/migrator` 应用仓库已生成的迁移（`src/lib/db/migrations/`）。
-  运行时 DB 客户端本就用 `drizzle-orm/postgres-js`，能力等价、DDL 零改动、无脱节风险。
-- 生成新迁移的 `db:generate` / `db:push` 改为按需 `npx --yes drizzle-kit@^0.31`（开发期一次性
-  操作），不再进入 `bun.lock` / `node_modules` / 审计树。
-
-验证：`npm audit` = **0 vulnerabilities**；migrator 可导入；24/24 测试、lint 0/0、web build、
-桌面静态导出均绿。
+1. **服务端未实现**：当前没有任何同步载荷真的出站。`insightforge-server` 上线前必须补齐 ADR 0002 风险 1–2
+   列出的传输加密、账号体系、服务端数据删除策略，以及**首次同步前的明示 + 「只同步元数据」关闭项**。
+   这一条是本文件里最大的一块空白，不要用「已实现 SyncBundle」误读为「同步已安全」。
+2. **安装包未签名**（Runbook C1，可选）：首次下载有 SmartScreen 提示；updater 的 minisign 校验独立生效，
+   不受影响。前提是把 updater 私钥放进 CI secret（C3，目前只在构建机 temp 目录）。
+3. **依赖审计没有自动化**：CI 不含 `npm audit` / `cargo deny` 一类步骤，供应链面靠人工。
+   要补的话是 ci.yml 一个步骤的事。
+4. **Windows 桌面 E2E 未实测**（C4）：无 WebView2 的环境里黄金路径明确 BLOCKED，不伪造 PASSED。
+5. **授权目录即隐私边界**：目录内的内容会进索引，并可最多 3 条片段进入 AI 出站包。
+   「发送前明示数量」是唯一的人工闸门；改这条必须连带改契约测试与文案。
+6. **网页端 AI 依赖桌面在线**：桌面离线时网页的 AI 能力显式关闭并说明原因——这是设计（不代填 Key），不是缺陷。

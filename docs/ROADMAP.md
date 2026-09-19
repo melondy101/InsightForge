@@ -1,7 +1,7 @@
 # 织知 InsightForge — 桌面版路线图
 
 > 版本：1.0（桌面版重写稿）
-> 最后更新：2026-09-02
+> 最后更新：2026-09-19（§6 按 ADR 0002 把「云同步」移出非目标）
 > 依据：[docs/research/2026-08-29-desktop-architecture-options.md](./research/2026-08-29-desktop-architecture-options.md) · [docs/research/2026-08-30-platform-export-options.md](./research/2026-08-30-platform-export-options.md)
 
 ---
@@ -91,7 +91,13 @@
 
 ## 6. 明确不做（当前路线图内）
 
-微信 API 直发 / 草稿箱同步；embedding / 向量检索；后台驻留 / 多用户 / 云同步；Word / PDF 导出；自定义主题 / 插件市场；知识库写回；旧数据迁移。
+微信 API 直发 / 草稿箱同步；embedding / 向量检索；后台驻留 / 多用户；Word / PDF 导出；
+自定义主题 / 插件市场；知识库写回；旧数据迁移。
+
+> **2026-09-19 修订**：「云同步」从非目标里移出——[ADR 0002](./adr/0002-web-remote-sync-service.md)
+> 选定远端同步服务作为第三类 runtime。客户端侧地基已落地（`SyncBundle`、设备登记与撤销、`rev` 定序、
+> HTTP 命令通道、「部署即更新」的网页 job）；**服务端本体与跨设备同步是新的一个阶段**，
+> 需要为它给既有排期让路（ADR 0002 风险 5），未开工前不承诺日期。
 
 ---
 

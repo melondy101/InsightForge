@@ -29,7 +29,7 @@
 
 ## 四、织知的落地约定（本项目特有）
 
-- **纯函数优先**：核心逻辑（索引、搜索、草稿、陪练、导出格式化、度量等）实现为 `crates/core/src/*.rs` 的纯函数，注入 `now` 等外部依赖以便测试与 SSR 一致。
+- **纯函数优先**：核心逻辑（索引、搜索、草稿、陪练、导出格式化、度量等）实现为 `crates/core/src/*.rs` 的纯函数，注入 `now` 等外部依赖，保证测试确定性、可复现。
 - **测试框架**：前端用 `vitest`，测试文件与实现同目录、命名 `*.test.ts`，运行 `bun run test`；Rust 用 `cargo test`。
 - **提交前三绿**：前端 `bun run test` 全过、`bunx tsc --noEmit` 0 错误、`bun run lint` 0 error/warning；Rust `cargo test` 全过、`cargo build` 通过。
 - **逐项交付**：一个功能一条 commit，本地跑通验证后单独推送到远端。
@@ -40,6 +40,11 @@
   两语言键必须对等，且源码里每个静态 `t()` 键都要有文案——由 `src/i18n/i18n.test.ts` 机械拦下。
   命令错误的文案走 `src/ui/error-text.ts`：`ERROR_CODES` 是 Rust `code()` 的唯一前端清单，
   公共文案在 `errors.*`，视图需要更具体的下一步时用 `errorText(t, error, 'viewNamespace')` 覆盖。
+- **用户内容按文本渲染**：来自知识库、草稿、AI 回包的字符串一律作为 React 子节点交给 React 转义，
+  **禁止** `dangerouslySetInnerHTML`（`src/search/snippet.test.ts` 扫全仓源码拦下）。
+  检索高亮是唯一例外：FTS5 的 `<mark>`/`</mark>` 由 `src/search/snippet.ts` 切成节点，其余仍按字面文本渲染。
+- **别的任务线的产物**：不要留在 `docs/` 与仓库根污染工作树，整体移进已忽略的 `.scratch/<任务线>/`，
+  并留 README 写清原路径 → 现路径、取回命令与「是否入库」的判断；删除属破坏性操作，需本人确认。
 
 ## 五、Tauri 命令清单（只注册业务命令）
 

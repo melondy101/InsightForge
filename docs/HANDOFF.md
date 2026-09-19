@@ -1,6 +1,7 @@
 # 织知 InsightForge · 桌面版稳定化 + 1.0 发布就绪 · 验收交接
 
-> 分支：`codex/desktop-release-readiness`（自 `main` 切出）
+> 分支：`feat/ui-v1-implement`（自 `main` 切出；§一–§五描述的是它承接的 `codex/desktop-release-readiness` 那条线，
+> §六 R3/§八 与 `docs/release-readiness.md` §4.1 记录 2026-09-19 这一轮）
 > 状态：全部门禁通过，**本地完成、未在远端 push / 未建 PR / 未发布 / 未签名 / 未触发更新**。
 > 范围遵循产品定位：本地优先、反代写（AI 只给问题/骨架/证据，血肉由创作者写）。
 
@@ -22,10 +23,11 @@
 ## 二、门禁状态（提交前全绿）
 
 **前端**（`bun run test` / `bunx tsc --noEmit` / `bun run lint`）
-- 测试：**172 passed**（20 文件），含三条契约测试：
+- 测试：**177 passed**（21 文件），含四条契约测试：
   `src/native/command-client.test.ts`（seam 三 adapter）、`src/i18n/i18n.test.ts`（双语键对等 +
   源码里每个静态 `t()` 键都要有文案）、`src/styles.test.ts`（视图用到的类必须有定义、
-  styles.css 里不许留谁都不用的死规则）。
+  styles.css 里不许留谁都不用的死规则）、`src/search/snippet.test.ts`（片段按文本渲染 +
+  全仓禁止 `dangerouslySetInnerHTML`）。
 - `tsc --noEmit`：0 错误。
 - `eslint`：0 error / 0 warning。
 
@@ -118,6 +120,11 @@
   仍留在 seam 之外的只有一处例外，见 §三「已知文案与 seam 例外」。
 - **R4 错误提示可能含本地路径**：`CommandError.message` 会透出底层错误字符串（如 DB/IO 路径），仅在应用内对本人可见，不会进入外发诊断；但若后续接入遥测须先过滤。
 - **R5 冲突三方解决的用户引导**：`DraftsView` 已暴露 `data-el` 钩子与三种选择，但无「为什么冲突」的解释文案，首次遇到易困惑（属反代写定位：提示优先于替写，可接受）。
+- **R9 检索片段的 HTML 注入面**：已关闭（2026-09-19）。`SearchView` 曾把 FTS5 `snippet()` 的结果经
+  `dangerouslySetInnerHTML` 渲染——那段文本是知识库文件原文，文件里写的 `<img onerror=…>` 会在 renderer 里执行。
+  现在由 `src/search/snippet.ts` 只把 `<mark>`/`</mark>` 切成高亮节点，其余按文本渲染；
+  `snippet.test.ts` 里那条全仓扫描禁止再出现该 API。真浏览器实测：探针字符串不再产生元素、`<mark>` 仍吃到
+  `.evi__snip mark` 的主题色、390 视口无横向溢出。历史与其余基线见 `SECURITY.md`。
 
 ### P2（可选增强）
 - **R6 E2E 在 CI 中常态化**：需 CI 提供 WebView2 + CDP；当前脚本仅本地/手动。
@@ -137,9 +144,11 @@
 
 ## 八、本分支 cleanliness
 
-- 已提交：Phase A–F 全部功能提交，每功能独立 commit；本轮另加 8 个清偿技术债的 commit
-  （SyncBundle、devices、部署即更新、sync_interval、coach 前端、错误码文案、样式契约、seam 收口）。
-- 工作树**未跟踪文件为 0**。此前挂着的 54 个文件全部来自另一条任务线（Markdown→LaTeX→PDF 报告渲染），
+- 已提交：Phase A–F 全部功能提交，每功能独立 commit；本轮另加 11 条——
+  8 条清偿技术债（SyncBundle、devices、部署即更新、sync_interval、coach 前端、错误码文案、样式契约、seam 收口）、
+  1 条仓库整洁（一次性产物 park 进 `.scratch/`）、1 条检索片段渲染修复、1 条文档与记忆对齐。
+- 工作树**未跟踪文件为 0**。此前挂着的 54 个未跟踪文件（另有 17 个已被忽略的 XeTeX 中间产物，合计 71 个）
+  全部来自另一条任务线（Markdown→LaTeX→PDF 报告渲染），
   已于 2026-09-19 整体移出 `docs/` 与仓库根，改放在已被 `.gitignore` 吞掉的 `.scratch/` 下：
   - `.scratch/report-latex/`：报告源码与成品、`elegantbook.cls`/`book_preamble.tex`/`report_template.tex`、
     第三方 `latex-template/elegantbook/`（含 License）、`test_math*`/`test_pandoc*` 探针、`preprocess_report.py`、

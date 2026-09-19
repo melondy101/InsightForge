@@ -107,8 +107,11 @@ cargo build               # 编译通过
 
 - `README.md` — 用户入口、安装/运行步骤
 - `CONTEXT.md` — 领域术语、页面地图、动作定义
+- `CHANGELOG.md` — 用户可见变更
+- `SECURITY.md` — 安全基线与已接受风险（改了出站面、凭据面、渲染面就必须同步这里）
 - `docs/PRD.md` — 产品需求与功能模块
 - `docs/ARCHITECTURE.md` — 架构原则、数据流、安全设计
+- `docs/RELEASE-RUNBOOK.md` / `docs/release-readiness.md` — 发布变量与真实验证状态
 - `docs/ROADMAP.md` — 版本里程碑与计划
 - `docs/adr/` — 重要架构决策记录（ADR）
 
@@ -117,8 +120,12 @@ cargo build               # 编译通过
 ## 8. 安全与合规
 
 - 禁止提交密钥、凭证或敏感配置。
-- 代转路由的 BYOK key 仅在单次请求内存中使用，绝不落盘 / 写日志。
-- 新增外部依赖需评估安全影响，避免引入高危漏洞。
+- BYOK API Key 只存**系统凭据库**（Windows Credential Manager，`crates/core/src/secrets.rs`）：
+  不进 SQLite、不进日志、不进任何出站包；服务端不持有、也不代理任何 AI Key（ADR 0002 §5）。
+- 只有 `EgressBundle`（AI）与 `SyncBundle`（同步）两类载荷可以离开本机，且结构上带不了本机路径。
+- 渲染用户内容（知识库正文、草稿、AI 回包）一律按文本，禁止 `dangerouslySetInnerHTML`；
+  安全基线与已接受风险见 `SECURITY.md`。
+- 新增外部依赖需评估安全影响，避免引入高危漏洞（CI 目前不含依赖审计步骤，需人工把关）。
 
 ---
 

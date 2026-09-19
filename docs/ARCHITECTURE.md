@@ -1,7 +1,7 @@
-# 织知 InsightForge — 架构概览（桌面版）
+# 织知 InsightForge — 架构概览
 
-> 版本：目标 1.0.0（draft）；当前构建版本见 `tauri.conf.json` 的 `0.1.0`
-> 最后更新：2026-08-30（2026-09-02 修订版本说明）
+> 版本：目标 1.0.0（draft）；当前构建版本见 workspace `Cargo.toml` 的 `version`（`0.1.0`）
+> 最后更新：2026-09-19（按 [ADR 0002](./adr/0002-web-remote-sync-service.md) 对齐三类 runtime）
 > 选型对比与理由：[docs/research/2026-08-29-desktop-architecture-options.md](./research/2026-08-29-desktop-architecture-options.md)
 > 导出方案：[docs/research/2026-08-30-platform-export-options.md](./research/2026-08-30-platform-export-options.md)
 
@@ -11,8 +11,11 @@
 
 - **本地优先**：知识库是用户自己的只读文件夹；SQLite 索引库可全量重建；关闭即退出，无后台守护。
 - **最小权限**：React 只拿窄而有类型的业务命令；renderer 无任意文件系统、任意网络、任意 SQL 权限。
-- **反代写边界**：AI 输出仅限动作白名单；出站仅限 `EgressBundle`；密钥只进 OS 凭据库。
-- **无损 Markdown**：磁盘 `.md` 是唯一真相；编辑器与导出均为派生物。
+- **一份核心，多类 runtime**：`crates/core` 不依赖 `tauri`；桌面与网页共用同一个 `CommandClient` seam
+  （桌面 Tauri adapter / 网页 HTTP adapter / 测试 fake adapter），两端看到同一份 interface。
+- **反代写边界**：AI 输出仅限动作白名单；出站仅限两类 bundle（AI 用 `EgressBundle`、同步用 `SyncBundle`）；
+  密钥只进 OS 凭据库，服务端不持有、不代理任何 AI Key。
+- **无损 Markdown**：本机磁盘 `.md` 是该文件的**渲染真相**；服务器上的同步副本只用于跨设备同步、不是编辑目标。
 - **单一写入者**：SQLite 由 Rust repository 独占，不经通用 SQL 插件暴露给前端。
 
 ## 2. 技术栈
@@ -20,7 +23,8 @@
 | 层 | 技术 | 备注 |
 | --- | --- | --- |
 | 桌面壳 | Tauri 2 | 系统 WebView2 + bootstrapper；不捆绑 fixed runtime |
-| 前端 | React + TypeScript + Vite | 无 Next.js / SSR / API routes |
+| 前端 | React 19 + TypeScript + Vite 8 | 同一份代码构建桌面壳内页面与网页静态站；无 Next.js / SSR / API routes |
+| 命令通道 | `CommandClient` seam（`src/native/command-client.ts`） | tauri / http / fake 三个 adapter；未配置的浏览器 fail-fast 为 `runtime_unconfigured` |
 | 编辑器 | CodeMirror 6 | 文档保持平面字符串，适合无损保存；藏于 `EditorAdapter` 后 |
 | 本地核心 | Rust | 文件、并发、SQLite、平台 API |
 | 数据 | SQLite + FTS5 | WAL + 单写队列；≥ 3.51.3（含 2026 WAL-reset 修复） |
@@ -31,22 +35,29 @@
 ## 3. 系统形状
 
 ```text
-React / TypeScript / Vite
+React / TypeScript / Vite（同一份代码：桌面壳内 + 网页静态站）
   ├─ Workspace UI（可调三栏，正文宽度下限 35%）
   ├─ Markdown editor adapter（CodeMirror 6）
   ├─ Evidence shelf（证据架）
-  └─ Coach UI（仅显式「我卡住了」后出现）
-                 │ typed commands + event channels
+  ├─ Coach UI（仅显式「我卡住了」后出现，见 src/coach/）
+  └─ CommandClient seam（一个 interface，三个 adapter）
+        ├─ tauri adapter —— 桌面：invoke + event + appVersion
+        ├─ http adapter  —— 网页：同一批命令名 POST 给同步服务端（VITE_API_BASE_URL）
+        └─ fake adapter  —— 测试：断言命令名与参数键
+                 │ 窄而有类型的业务命令 + 事件通道
                  ▼
-Rust application core
-  ├─ sources      目录授权、只读边界、忽略规则
+Rust application core（crates/core，不依赖 tauri；服务端将来复用同一份）
+  ├─ sources      目录授权、只读边界、忽略规则、同步间隔（5/15/30 分钟到点补扫）
   ├─ indexer      扫描、监听、hash、解析、分块、增量事务
   ├─ search       本地关键词召回、排序、片段上下文
   ├─ drafts       Markdown 打开、原子保存、冲突检测
   ├─ coaching     三轮协议、接续条件、结构化响应校验
-  ├─ ai_gateway   出站裁剪、OpenAI-compatible client、审计摘要
-  ├─ secrets      OS credential-store adapter
-  └─ repository   SQLite schema、迁移、备份/重建
+  ├─ egress       出站包：EgressBundle（AI）+ SyncBundle（同步），白名单/黑名单 + 明示数量
+  ├─ devices      设备登记与撤销（撤销不可逆）
+  ├─ ai_gateway   OpenAI-compatible client、审计摘要（kind = ai / sync 同表）
+  ├─ secrets      OS credential-store adapter（仅桌面）
+  ├─ diagnostics  脱敏快照 + 结构化事件日志
+  └─ repository   SQLite schema、迁移、备份/重建、rev / origin_device 打点
                  │
                  ├─ App data/insightforge.sqlite
                  ├─ selected knowledge folders (read-only)
@@ -54,25 +65,31 @@ Rust application core
 ```
 
 - 阻塞型工作（扫描/解析/hash/数据库写入）运行在专门 executor，不阻塞 UI 路径；必须带显式 cancellation token（已开始的 blocking work 不能靠丢弃 handle 停止）。
-- 事件通道推送索引进度等状态给前端。
+- 事件通道推送索引进度等状态给前端；进度本身是状态（`JobProgress`），事件只是它的转发，丢了不会卡条。
+- 三类 runtime 的分工与「服务端尚未落地」的边界见 [ADR 0002](./adr/0002-web-remote-sync-service.md) §1。
+  网页端可构建、可部署，但没有后端可连，所以 `deploy-web.yml` 在缺 `INSIGHTFORGE_WEB_API_BASE` 时主动失败。
 
 ## 4. 前端 / Rust 边界
 
-只注册业务命令，不放通用能力：
+只注册业务命令，不放通用能力（下表与 `src-tauri/src/lib.rs` 的 `generate_handler!` 一致，共 50 条）：
 
 ```
 sources.add / list / pause / remove / sync / reconcile / rebuild_index / set_sync_interval
 sources_await_index_committed   # 阻塞等待索引提交，返回 IndexStatus（含 searchable 布尔）
 search.query / open_context
 settings.get / set_ai / set_ai_enabled / set_api_key / clear_api_key / test_connection
-ai.sample
+ai.sample                       # 回显模型回包摘要，验证连通性
 drafts.ensure_directory / list / create / open / save / delete / resolve_conflict / cleanup
-coach.start / respond / get_session / mark_helpful / archive
+coach.start / respond / get_session / latest_session / turns / mark_helpful / archive
 thoughts.upsert / list / list_by_draft / list_by_source / delete
 references.create / list / adopt / mark_source_deleted
 egress.build / audit.log / audit.list
-diagnostics.snapshot / diagnostics.event_log   # 脱敏诊断快照 / 结构化事件日志（用户可触发复制/导出）
+devices.register / revoke / list
+diagnostics.snapshot / diagnostics.event_log
 ```
+
+`sync.push / pull / resolve_conflict` 是 ADR 0002 规划的命令面，**服务端未落地前不注册**——
+当前没有任何东西真的出站。
 
 Tauri 2 的 permissions / scopes / capabilities 负责命令与窗口绑定；但**动态目录授权的领域规则**（知识库只读、草稿目录可写、symlink 不越界、路径不上传）必须在 Rust 业务服务内执行，不能只靠通用 FS scope。
 
@@ -96,12 +113,18 @@ Tauri 2 的 permissions / scopes / capabilities 负责命令与窗口绑定；�
 - 正常保存：同目录临时文件写入 → flush → sync → 平台替换（Windows `ReplaceFileW`；Unix 同文件系统 rename）→ **成功后才更新数据库基线**。
 - 集成测试覆盖断电、进程崩溃、锁占用、杀毒软件干扰。
 
-## 7. AI 网关
+## 7. 出站：两类 bundle
 
-- 每次远端调用前由 Rust 生成不可变 `EgressBundle`：选区/光标前后段落、标题/大纲、已引用素材、≤3 条检索片段、无本机路径的来源标题；UI 明示「将发送 N 个片段」。**只有该 bundle 可进入 HTTP client。**
+- **AI 出站 `EgressBundle`**：每次远端调用前由 Rust 生成不可变载荷——选区/光标前后段落、标题/大纲、
+  已引用素材、≤3 条检索片段、无本机路径的来源标题；UI 明示「将发送 N 个片段」。**只有该 bundle 可进入 HTTP client。**
+- **同步出站 `SyncBundle`**（`crates/core/src/egress.rs`）：作者资产 + 逻辑身份 + 修订。可出站的列由
+  `SYNCED_ASSETS` 逐表白名单声明，`path` / `root_path` / `abs_path` / `file_identity` / `baseline_*`
+  在 `DEVICE_LOCAL_COLUMNS` 黑名单里，`build` 命中即报错——铁律 3 的「同步载荷永不含路径」是类型约束，
+  不靠调用点自觉。契约见 `crates/core/tests/sync_bundle_contract.rs`。
+  发送方（服务端与 `sync.push/pull`）未实现，所以当前没有东西真的出站。
 - 响应必须解析为白名单动作 `question | evidence | tension | directions | micro_task`；疑似连续正文直接丢弃并替换为本地安全提示。
 - BYOK 存 OS 凭据库（Tauri Stronghold 是加密 vault，不等同 OS 凭据库，不混用）。
-- `ai_call_audit` 记录模型、时间、发送片段数量/ID、状态；不存敏感全文。
+- `ai_call_audit` 一张表两类记录（`kind = 'ai' | 'sync'`）：模型、时间、发送数量/ID、状态；不存敏感全文。
 
 ## 8. 索引-搜索时序契约
 
@@ -148,7 +171,7 @@ Tauri 2 `handle.emit("sources://progress", ...)` 在开发模式 WebView2 通道
 
 | 表 | 用途 |
 | --- | --- |
-| `knowledge_source` | 用户命名的根目录、启停、ignore、同步游标 |
+| `knowledge_source` | 用户命名的根目录、启停、ignore、同步游标（`root_path` 是**设备本地** UNIQUE，只表达「同一台机器不能授权两次」） |
 | `source_file` | 相对路径、file identity、hash、mtime、状态（完整路径不进入 AI 数据） |
 | `fragment` | 文件内定位、标题路径、文本、内容 hash |
 | `fragment_fts_*` | FTS5 派生索引，可完全重建 |
@@ -157,7 +180,11 @@ Tauri 2 `handle.emit("sources://progress", ...)` 在开发模式 WebView2 通道
 | `coach_session` | 三轮状态、接续条件、摘要、帮助反馈 |
 | `coach_turn` | 会话轮次与结构化动作；发布后默认折叠且不进检索 |
 | `thought_card` | 作者确认的想法、素材与草稿位置关系 |
-| `ai_call_audit` | 模型、时间、发送片段数量/ID、状态 |
+| `ai_call_audit` | 模型、时间、发送数量/ID、状态；`kind` 区分 `'ai'` 与 `'sync'` |
+| `sync_device` | 设备登记（迁移 0019）：本机身份、标签、`revoked_at`；撤销不可逆 |
+
+所有参与同步的作者资产表带 `rev`（写入设备本地单调递增，存储层触发器打点）与 `origin_device`；
+跨设备判序比较 `(rev, origin_device)`，同修订不同内容即真冲突（ADR 0002 §3）。
 
 首次运行建立全新 schema，**不做旧数据迁移**。FTS 表、扫描游标、缓存为派生数据；引用快照、思考卡、求助摘要、保存基线不是缓存，不随「重建索引」删除。
 
@@ -171,13 +198,23 @@ Tauri 2 `handle.emit("sources://progress", ...)` 在开发模式 WebView2 通道
 
 ## 11. 打包、更新与测试
 
-- 公开发布：签名 NSIS 或 MSI + 系统 WebView2 bootstrapper；updater 走静态 JSON / GitHub Releases（签名强制），不自建业务服务器。
-- 当前个人自用基线：updater 配置和 fail-closed 注入已验证；没有签名安装包、公开 HTTPS endpoint 或安装升级 E2E，因此不能作为公开发布验证依据。
-- 测试三层：
-  1. Rust 单元/属性测试：分块、路径边界、ignore、hash 迁移、排名、三轮状态机、AI 出站裁剪。
+- 桌面公开发布：签名 NSIS 或 MSI + 系统 WebView2 bootstrapper；updater 走 GitHub Releases 的
+  `latest.json`（minisign 签名强制，不可关闭），不自建业务服务器。
+  版本号只有一个真源：workspace `Cargo.toml` 的 `version`。
+- 网页：`.github/workflows/deploy-web.yml` 同一 tag 触发，「部署即更新」、无独立版本通道；
+  构建期注入 `VITE_API_BASE_URL`（取自仓库变量 `INSIGHTFORGE_WEB_API_BASE`），缺该变量时**主动失败**不发壳，
+  构建后还会断言这个地址真的烘进了 `dist/assets/*.js`。
+- 测试四层：
+  1. Rust 单元/属性测试：分块、路径边界、ignore、hash 迁移、排名、三轮状态机、AI 出站裁剪、
+     同步载荷白名单、设备撤销、到点补扫。
   2. 临时目录 + SQLite 集成测试：新增/修改/删除/重命名、watch 漏事件后的 reconciliation、10k 文件基准、草稿冲突与失败恢复。
-  3. Windows 桌面 E2E：目录选择、索引进度、证据卡、编辑保存、外部冲突、AI consent（WebDriver；纯浏览器 renderer 模式不能代替真实文件与安装测试）。
-- CI（macOS/Linux 未支持期间）：至少编译 Rust core 并跑平台无关测试。
+  3. 前端契约测试（`bun run test`）：`command-client.test.ts`（seam 与三 adapter）、
+     `i18n.test.ts`（双语键对等 + 源码里每个静态 `t()` 键都要有文案）、`styles.test.ts`
+     （视图用到的类必须有定义、样式表里不许留谁都不用的死规则）、`error-text.test.ts`
+     （每个 Rust 错误码在两种语言都有一句话文案）。
+  4. Windows 桌面 E2E：目录选择、索引进度、证据卡、编辑保存、外部冲突、AI consent（WebDriver；纯浏览器 renderer 模式不能代替真实文件与安装测试）。
+- CI：`ci.yml` 跑 windows 与 ubuntu 两条腿（Rust core 在 Linux 上的 fmt/clippy/test 是服务端复用 core 的前提），
+  外加前端三绿与版本一致性检查。macOS 未支持。
 
 ## 12. 平台支持状态
 
