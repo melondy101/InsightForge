@@ -561,6 +561,14 @@ fn coach_turns(
 }
 
 #[tauri::command]
+fn coach_latest_session(
+    state: State<'_, CoachState>,
+    draft_id: String,
+) -> Result<Option<CoachSession>, CommandError> {
+    Ok(state.0.latest_session_for_draft(&draft_id)?)
+}
+
+#[tauri::command]
 fn coach_mark_helpful(
     state: State<'_, CoachState>,
     turn_id: String,
@@ -864,6 +872,7 @@ pub fn run() {
             coach_respond,
             coach_get_session,
             coach_turns,
+            coach_latest_session,
             coach_mark_helpful,
             coach_archive,
             devices_register,

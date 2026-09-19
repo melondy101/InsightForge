@@ -204,6 +204,52 @@
     "draft": "草稿",
     "delete": "删除"
   },
+  "coach": {
+    "nav": {
+      "coach": "陪练"
+    },
+    "title": "写作陪练",
+    "rule": "AI 只给问题、证据与微任务，正文由你写。最多三轮，之后把笔还给你。",
+    "startHint": "卡住了就说一句：陪练只会提示，不会替你写。",
+    "emptyDraft": "先打开一篇草稿，再叫陪练。",
+    "start": "我卡住了",
+    "again": "再开一轮陪练",
+    "round": "第 {{round}} 轮",
+    "rounds": "{{round}}/{{max}} 轮 · 还剩 {{left}} 轮",
+    "roundsDone": "三轮用完了，接下来这一节由你写。",
+    "archived": "这次陪练已归档：不再出现在检索里。",
+    "archive": "归档这次陪练",
+    "placeholder": "说说你卡在哪一句、为什么卡住…",
+    "send": "发给陪练",
+    "helpful": "这轮有帮助",
+    "helpfulOn": "已标记有帮助",
+    "turnsEmpty": "还没有对话。",
+    "dismiss": "知道了",
+    "action": {
+      "question": "澄清问题",
+      "evidence": "证据 / 素材",
+      "tension": "张力",
+      "directions": "方向建议",
+      "micro_task": "微任务"
+    },
+    "error": {
+      "ai_disabled": "AI 总开关是关着的。到设置里打开并填好服务商、模型与 Key，再来叫陪练。",
+      "ai_no_base_url": "还没有填 AI 服务商地址，陪练无处可问。",
+      "ai_no_model": "还没有选模型，陪练不知道该问谁。",
+      "ai_no_api_key": "还没有存 API Key（它只留在本机的凭据库里）。",
+      "ai_http_status": "AI 服务商返回了错误状态，稍后再试，或到设置里测连接。",
+      "invalid_response": "AI 的回包读不懂，这一轮没有记下。",
+      "max_rounds_reached": "这个会话的三轮已经用完，请重新开始一轮。",
+      "session_not_active": "这个会话已经不再接受追问。",
+      "session_not_found": "找不到这个陪练会话。",
+      "invalid_action": "陪练的回包不在五类动作之内，已丢弃。",
+      "egress_error": "这次没能在本机组好要送出的片段。",
+      "repository_error": "数据库操作失败。",
+      "secret_store_error": "读不到本机凭据库里的 Key。",
+      "client_error": "发不出去：网络或服务商不可达。",
+      "generic": "陪练出了错：{{message}}"
+    }
+  },
   "egress": {
     "nav": {
       "egress": "出站审计"

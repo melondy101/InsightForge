@@ -47,7 +47,7 @@ search.query / open_context
 settings.get / set_ai / set_ai_enabled / set_api_key / clear_api_key / test_connection
 ai.sample                       # 发送样例请求验证连通性（只回显模型回包摘要）
 drafts.ensure_directory / list / create / open / save / delete / resolve_conflict / cleanup
-coach.start / respond / get_session / turns / mark_helpful / archive
+coach.start / respond / get_session / latest_session / turns / mark_helpful / archive
 thoughts.upsert / list / list_by_draft / list_by_source / delete
 references.create / list / adopt / mark_source_deleted
 egress.build / audit.log / audit.list

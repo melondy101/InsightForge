@@ -61,6 +61,21 @@ it('设置文案（08 号票 settings.* 命名空间）在两种语言下可用'
   );
 });
 
+it('陪练文案在两种语言下可用（coach.* 命名空间）', () => {
+  i18n.changeLanguage('zh-CN');
+  expect(i18n.t('coach.nav.coach')).toBe('陪练');
+  expect(i18n.t('coach.start')).toBe('我卡住了');
+  expect(i18n.t('coach.rounds', { round: 1, max: 3, left: 2 })).toBe('1/3 轮 · 还剩 2 轮');
+  expect(i18n.t('coach.action.micro_task')).toBe('微任务');
+  expect(i18n.t('coach.error.ai_disabled')).toContain('AI 总开关');
+  i18n.changeLanguage('en-US');
+  expect(i18n.t('coach.nav.coach')).toBe('Coach');
+  expect(i18n.t('coach.start')).toBe("I'm stuck");
+  expect(i18n.t('coach.rounds', { round: 1, max: 3, left: 2 })).toBe('1/3 rounds · 2 left');
+  expect(i18n.t('coach.action.micro_task')).toBe('Micro-task');
+  expect(i18n.t('coach.error.ai_disabled')).toContain('AI master switch');
+});
+
 it('检索时序契约文案在两种语言下可用（C14）', () => {
   i18n.changeLanguage('zh-CN');
   expect(i18n.t('search.indexing')).toBe('索引中…');

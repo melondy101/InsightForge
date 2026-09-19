@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { DraftsView } from './drafts/DraftsView';
 import { DiagnosticsView } from './diagnostics/DiagnosticsView';
+import { CoachPanel } from './coach/CoachPanel';
 import { ReferencesView } from './references/ReferencesView';
 import { SearchView } from './search/SearchView';
 import { SettingsView } from './settings/SettingsView';
@@ -13,7 +14,7 @@ import { useDrafts } from './drafts/useDrafts';
 import { AppStateContext, AppActionsContext, DraftsModelContext } from './AppStateContext';
 import { WorkspaceView } from './workspace/WorkspaceView';
 import {
-  IconWorkspace, IconDraft, IconReference, IconThought,
+  IconWorkspace, IconDraft, IconReference, IconThought, IconCoach,
   IconSource, IconSearch, IconSettings, IconEgress,
   IconSun, IconMoon,
 } from './ui/icons';
@@ -27,6 +28,7 @@ type View =
   | 'drafts'
   | 'references'
   | 'thoughts'
+  | 'coach'
   | 'diagnostics';
 
 function BrandMark() {
@@ -128,6 +130,9 @@ export function App() {
                     <button type="button" className={navItemClass('thoughts')} data-el="nav-thoughts" onClick={() => setView('thoughts')}>
                       <IconThought /> {t('thoughts.nav.thoughts')}
                     </button>
+                    <button type="button" className={navItemClass('coach')} data-el="nav-coach" onClick={() => setView('coach')}>
+                      <IconCoach /> {t('coach.nav.coach')}
+                    </button>
                   </div>
                   <div className="navgroup">
                     <div className="eyebrow">{t('shell.groupSources')}</div>
@@ -194,6 +199,17 @@ export function App() {
               ) : view === 'thoughts' ? (
                 <section className="pane pane--thoughts" data-el="pane-thoughts">
                   <ThoughtsView />
+                </section>
+              ) : view === 'coach' ? (
+                <section className="pane pane--coach" data-el="pane-coach">
+                  {draftsModel.activeDraft ? (
+                    <CoachPanel draftId={draftsModel.activeDraft.id} />
+                  ) : (
+                    <div className="coach" data-el="coach-view">
+                      <h2 data-el="coach-title">{t('coach.title')}</h2>
+                      <p data-el="coach-empty-draft">{t('coach.emptyDraft')}</p>
+                    </div>
+                  )}
                 </section>
               ) : view === 'diagnostics' ? (
                 <section className="pane pane--diagnostics" data-el="pane-diagnostics">

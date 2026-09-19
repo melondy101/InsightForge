@@ -276,6 +276,40 @@ impl CoachService {
         Ok(coach_turn)
     }
 
+    /// 该草稿最近一次陪练会话（没有则 `None`）。
+    ///
+    /// 界面需要它才谈得上「继续上次」：没有这条查询，重新打开陪练只能再造一个会话，
+    /// 作者会看到两轮互不知情的对话。
+    pub fn latest_session_for_draft(
+        &self,
+        draft_id: &str,
+    ) -> Result<Option<CoachSession>, CoachError> {
+        let draft_id = draft_id.to_string();
+        let session = self.repo.read(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, draft_id, state, current_round, max_rounds, created_at, updated_at
+                 FROM coach_session
+                 WHERE draft_id = ?1
+                 ORDER BY created_at DESC, id DESC
+                 LIMIT 1",
+            )?;
+            let mut rows = stmt.query(rusqlite::params![draft_id])?;
+            match rows.next()? {
+                Some(row) => Ok(Some(CoachSession {
+                    id: row.get(0)?,
+                    draft_id: row.get(1)?,
+                    state: row.get(2)?,
+                    current_round: row.get(3)?,
+                    max_rounds: row.get(4)?,
+                    created_at: row.get(5)?,
+                    updated_at: row.get(6)?,
+                })),
+                None => Ok(None),
+            }
+        })?;
+        Ok(session)
+    }
+
     /// 获取会话详情。
     pub fn get_session(&self, session_id: &str) -> Result<CoachSession, CoachError> {
         let session_id = session_id.to_string();

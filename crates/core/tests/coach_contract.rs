@@ -300,3 +300,37 @@ fn the_api_key_never_appears_in_the_stored_transcript() {
         "对话记录里不能出现 Key（那是出站凭据）"
     );
 }
+
+#[test]
+fn reopening_the_coach_finds_the_most_recent_session_of_that_draft_only() {
+    let fx = Harness::new();
+
+    assert_eq!(
+        fx.coach.latest_session_for_draft("draft-1").expect("query"),
+        None,
+        "从未陪练过的草稿不该读到会话"
+    );
+
+    let first = fx.coach.start("draft-1").expect("start");
+    let second = fx.coach.start("draft-1").expect("start again");
+
+    let latest = fx
+        .coach
+        .latest_session_for_draft("draft-1")
+        .expect("query")
+        .expect("这篇草稿现在有会话了");
+    assert_eq!(
+        latest.id, second.id,
+        "重新打开界面要继续最近的那一次，不是最早那次"
+    );
+    assert_eq!(
+        fx.coach.latest_session_for_draft("draft-2").expect("query"),
+        None,
+        "会话按草稿隔离：另一篇草稿不该读到这一篇的对话"
+    );
+    assert_eq!(
+        fx.coach.get_session(&first.id).expect("first").id,
+        first.id,
+        "最近一次之外的会话仍要读得到，历史不能因此丢掉"
+    );
+}

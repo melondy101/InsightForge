@@ -204,6 +204,52 @@
     "draft": "Draft",
     "delete": "Delete"
   },
+  "coach": {
+    "nav": {
+      "coach": "Coach"
+    },
+    "title": "Writing coach",
+    "rule": "The AI only asks questions and offers evidence or micro-tasks. You write the prose — three rounds, then the pen is yours.",
+    "startHint": "Say what you're stuck on: the coach hints, it never writes for you.",
+    "emptyDraft": "Open a draft first, then call the coach.",
+    "start": "I'm stuck",
+    "again": "Start another session",
+    "round": "Round {{round}}",
+    "rounds": "{{round}}/{{max}} rounds · {{left}} left",
+    "roundsDone": "That's the third round. This section is yours to write.",
+    "archived": "This session is archived: it no longer shows up in search.",
+    "archive": "Archive this session",
+    "placeholder": "Which sentence are you stuck on, and why…",
+    "send": "Ask the coach",
+    "helpful": "This helped",
+    "helpfulOn": "Marked helpful",
+    "turnsEmpty": "No exchange yet.",
+    "dismiss": "Got it",
+    "action": {
+      "question": "Clarifying question",
+      "evidence": "Evidence / material",
+      "tension": "Tension",
+      "directions": "Directions",
+      "micro_task": "Micro-task"
+    },
+    "error": {
+      "ai_disabled": "The AI master switch is off. Turn it on in Settings and fill in provider, model and key before calling the coach.",
+      "ai_no_base_url": "No AI provider URL yet, so the coach has nobody to ask.",
+      "ai_no_model": "No model selected yet, so the coach doesn't know who to ask.",
+      "ai_no_api_key": "No API key stored yet (it stays in this machine's credential store).",
+      "ai_http_status": "The AI provider returned an error status. Try again later, or run the connection test in Settings.",
+      "invalid_response": "The AI reply could not be read, so this round was not recorded.",
+      "max_rounds_reached": "This session already used its three rounds. Start a new one.",
+      "session_not_active": "This session no longer takes follow-ups.",
+      "session_not_found": "That coaching session could not be found.",
+      "invalid_action": "The coach's reply was outside the five allowed actions and was dropped.",
+      "egress_error": "The fragments to send could not be assembled locally.",
+      "repository_error": "Database operation failed.",
+      "secret_store_error": "The key could not be read from this machine's credential store.",
+      "client_error": "Could not send: the network or provider is unreachable.",
+      "generic": "The coach hit an error: {{message}}"
+    }
+  },
   "egress": {
     "nav": {
       "egress": "Egress"
