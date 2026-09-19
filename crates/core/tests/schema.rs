@@ -34,9 +34,10 @@ fn open_applies_ticket02_migrations_and_creates_domain_tables() {
         // 0014–0015 为 10 号票新增（coach_session / coach_turn 表）；
         // 0016 为 ADR 0002 新增（作者资产的 rev / origin_device 同步列）；
         // 0017 为 ADR 0002 新增（rev / origin_device 的存储层打点触发器）；
-        // 0018 为 ADR 0002 §5 新增（ai_call_audit.kind：AI 出站与同步出站分开审计）。
-        vec![1, 2, 3, 4, 10, 11, 12, 13, 14, 15, 16, 17, 18],
-        "migrations must apply in strict order (02: 0001-0003, 08: 0004, 06: 0010, 07: 0011, 09: 0012, 11: 0013, 10: 0014-0015, ADR 0002: 0016-0018)"
+        // 0018 为 ADR 0002 §5 新增（ai_call_audit.kind：AI 出站与同步出站分开审计）；
+        // 0019 为 ADR 0002 §3 新增（sync_device 设备注册表）。
+        vec![1, 2, 3, 4, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
+        "migrations must apply in strict order (02: 0001-0003, 08: 0004, 06: 0010, 07: 0011, 09: 0012, 11: 0013, 10: 0014-0015, ADR 0002: 0016-0019)"
     );
 
     let tables = table_names(&dir.path().join("insightforge.sqlite"));
@@ -47,6 +48,7 @@ fn open_applies_ticket02_migrations_and_creates_domain_tables() {
         "fragment_fts",
         "coach_session",
         "coach_turn",
+        "sync_device",
     ] {
         assert!(
             tables.iter().any(|name| name == expected),

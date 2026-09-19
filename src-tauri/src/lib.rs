@@ -8,17 +8,18 @@ use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
 use insightforge_core::coach::CoachTurnInput;
-use insightforge_core::diagnostics::{DiagnosticSnapshot, EventLog, LogLevel};
+use insightforge_core::diagnostics::{platform_label, DiagnosticSnapshot, EventLog, LogLevel};
 use insightforge_core::egress::{
     AuditLogger, AuditRecord, EgressBundle, EgressBundleBuilder, EgressError,
 };
 use insightforge_core::references::CreateReference;
 use insightforge_core::thoughts::{ThoughtCard, ThoughtsError, ThoughtsService, UpsertThoughtCard};
 use insightforge_core::{
-    AiSampleReply, AiSettings, CoachError, CoachService, CoachSession, CoachTurn, DraftsError,
-    DraftsService, EventSink, KeyringStore, ReferencesError, ReferencesService, Repository,
-    RepositoryError, SearchError, SearchService, Settings, SettingsError, SourceEvent,
-    SourceSummary, Sources, SourcesError, TestConnectionReport, UreqAiHttpClient,
+    AiSampleReply, AiSettings, CoachError, CoachService, CoachSession, CoachTurn, Device,
+    DeviceRegistry, DevicesError, DraftsError, DraftsService, EventSink, KeyringStore,
+    ReferencesError, ReferencesService, Repository, RepositoryError, SearchError, SearchService,
+    Settings, SettingsError, SourceEvent, SourceSummary, Sources, SourcesError,
+    TestConnectionReport, UreqAiHttpClient,
 };
 
 /// 启动时打开的数据库，经 Tauri managed state 注入后续命令。
@@ -50,6 +51,9 @@ pub struct EventLogState(pub Arc<Mutex<insightforge_core::diagnostics::EventLog>
 
 /// 陪练服务状态。
 pub struct CoachState(pub Arc<CoachService>);
+
+/// 设备注册表状态（ADR 0002 §3：入站修订要先问「这台设备还作数吗」）。
+pub struct DevicesState(pub Arc<DeviceRegistry>);
 
 /// 命令错误投影：稳定 code 供前端 i18n 映射，message 供开发诊断。
 #[derive(Debug, Serialize)]
@@ -126,6 +130,15 @@ impl From<CoachError> for CommandError {
     fn from(error: CoachError) -> Self {
         Self {
             code: "coach_error",
+            message: error.to_string(),
+        }
+    }
+}
+
+impl From<DevicesError> for CommandError {
+    fn from(error: DevicesError) -> Self {
+        Self {
+            code: error.code(),
             message: error.to_string(),
         }
     }
@@ -456,6 +469,27 @@ fn audit_list(
     Ok(state.1.list(limit)?)
 }
 
+// ---- devices.*（ADR 0002 §3：设备注册与撤销）----
+
+#[tauri::command]
+fn devices_register(
+    state: State<'_, DevicesState>,
+    id: String,
+    label: String,
+) -> Result<Device, CommandError> {
+    Ok(state.0.register(&id, &label)?)
+}
+
+#[tauri::command]
+fn devices_revoke(state: State<'_, DevicesState>, id: String) -> Result<Device, CommandError> {
+    Ok(state.0.revoke(&id)?)
+}
+
+#[tauri::command]
+fn devices_list(state: State<'_, DevicesState>) -> Result<Vec<Device>, CommandError> {
+    Ok(state.0.list()?)
+}
+
 // ---- thoughts.*（11 号票：思考卡）----
 
 #[tauri::command]
@@ -727,6 +761,19 @@ pub fn run() {
             ));
             app.manage(CoachState(coach));
 
+            // ADR 0002 §3：设备注册表。本机身份在启动时登记一次，好让「我的设备」列表
+            // 不是空的；登记被拒只可能是本机身份已撤销——那要在诊断里看得见，
+            // 但不能因此让应用起不来（用户会被锁在自己的机器之外）。
+            let devices = Arc::new(DeviceRegistry::new(Arc::clone(&db)));
+            match devices.register(&device_id, &platform_label()) {
+                Ok(device) => println!("[insightforge] device registered: label={}", device.label),
+                Err(err) => eprintln!(
+                    "[insightforge] local device not registered: code={} reason={err}",
+                    err.code()
+                ),
+            }
+            app.manage(DevicesState(devices));
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -775,6 +822,9 @@ pub fn run() {
             coach_get_session,
             coach_mark_helpful,
             coach_archive,
+            devices_register,
+            devices_revoke,
+            devices_list,
             export_write_clipboard
         ])
         .run(tauri::generate_context!())

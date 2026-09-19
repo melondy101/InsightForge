@@ -51,6 +51,7 @@ coach.start / respond / get_session / mark_helpful / archive
 thoughts.upsert / list / list_by_draft / list_by_source / delete
 references.create / list / adopt / mark_source_deleted
 egress.build / audit.log / audit.list
+devices.register / revoke / list   # ADR 0002 §3：设备登记，撤销不可逆
 diagnostics.snapshot / diagnostics.event_log   # 脱敏诊断快照 / 结构化事件日志（用户可触发复制/导出）
 ```
 

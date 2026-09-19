@@ -282,6 +282,21 @@ END",
         name: "add_kind_to_ai_call_audit",
         sql: "ALTER TABLE ai_call_audit ADD COLUMN kind TEXT NOT NULL DEFAULT 'ai'",
     },
+    // ADR 0002 §3：服务端只保管「每条逻辑身份所见过的最高修订」，而判定一条入站
+    // 修订能不能落地，先要回答「这台设备还作数吗」。撤销必须不可逆——被盗用的设备
+    // 身份不能靠重新注册复活，所以状态用 CHECK 锁死在 active/revoked 两值。
+    Migration {
+        version: 19,
+        name: "add_sync_device_registry",
+        sql: "CREATE TABLE sync_device (
+    id TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'revoked')),
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    revoked_at TEXT
+)",
+    },
 ];
 
 /// 版本化迁移执行器：校验编号后把未应用的迁移按序应用到数据库。

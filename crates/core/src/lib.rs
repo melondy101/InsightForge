@@ -7,6 +7,7 @@
 pub mod chunking;
 pub mod clock;
 pub mod coach;
+pub mod devices;
 pub mod diagnostics;
 pub mod document_store;
 pub mod drafts;
@@ -31,6 +32,7 @@ pub use clock::{format_iso, now_iso};
 pub use coach::{
     CoachAction, CoachError, CoachService, CoachSession, CoachSessionState, CoachTurn,
 };
+pub use devices::{Device, DeviceRegistry, DeviceStatus, DevicesError};
 pub use diagnostics::{
     build_snapshot, now_rfc3339, platform_label, DatabaseDiagnostics, DiagnosticSnapshot, EventLog,
     LogEntry, LogLevel, MUST_NOT_LOG_KEYS,

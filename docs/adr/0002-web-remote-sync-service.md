@@ -58,6 +58,13 @@ UUIDv4，源文件级身份是 `(source_id, rel_path)`——`rel_path` 本来就
 本就是设备本地的不变量，也是 `sources.add` 拒绝重复根目录的依据。
 跨设备身份一律由 `id` 承担（`identity::new_id()` 铸造 UUIDv4），同步载荷永不含路径。
 
+> 实现状态（2026-09-19）：设备登记落在 `crates/core/src/devices.rs`（迁移 0019 建 `sync_device`），
+> 命令面 `devices.register / revoke / list`。两条规则由 `tests/devices_contract.rs` 11 条用例守住：
+> 未登记不接受、撤销不可逆、重复撤销不覆盖第一次的 `revoked_at`
+> （把两条规则分别改坏，对应用例确实变红，不是摆设）。桌面启动时登记本机身份（标签用平台标识），
+> 本机身份若已撤销只在 stdout 报警而不阻止启动——把用户锁在自己的机器之外是更坏的结局。
+> 仍缺的是**设备管理界面**与服务端的登记持久化（task #9）。
+
 ### 4. 铁律 4 修订：磁盘 `.md` 仍是**渲染真相**，服务器副本是**同步真相**
 
 原文：「磁盘上的 `.md` 是唯一真相」。
@@ -102,7 +109,9 @@ UUIDv4，源文件级身份是 `(source_id, rel_path)`——`rel_path` 本来就
 - 网页与服务端：同一 tag 触发部署 job，「部署即更新」，无独立版本通道。
   现状：桌面侧 `release.yml` 已落地（tag → 打包 → minisign 签名 → Release + `latest.json`），
   签名公钥已换成真实 minisign 公钥，endpoint 由 CI 注入；
-  网页侧部署 job **刻意尚未添加**——前端还没有 HTTP adapter，此刻部署等于发布一个不能用的壳。
+  网页侧 `deploy-web.yml` 也已落地（Pages 部署，构建期注入 `VITE_API_BASE_URL`），
+  但它在缺少 `vars.INSIGHTFORGE_WEB_API_BASE` 时**主动失败**——因为
+  `insightforge-server` 本身还没写，静态站今天部署出去只能连到一个不存在的后端。
 - 平台矩阵本期只承诺 Windows（与 `PRD.md:59` 一致）；Linux/macOS 不做承诺，
   `secrets.rs` 在非 Windows 拒绝服务的路径保持不变。
 
