@@ -5,30 +5,7 @@ import type { SourceSummary } from './api';
 import { SYNC_INTERVAL_CHOICES } from './api';
 import { progressPercent } from './progress';
 import { useSources } from './useSources';
-import { type CommandErrorShape } from '../native/command-client';
-
-/** 错误 code → i18n key；未知 code 回退到 generic（带 Rust message 供诊断）。 */
-function errorText(t: (key: string, options?: Record<string, unknown>) => string, error: CommandErrorShape): string {
-  const known = [
-    'invalid_name',
-    'duplicate_root',
-    'source_not_found',
-    'source_paused',
-    'already_indexing',
-    'invalid_rel_path',
-    'invalid_root',
-    'root_not_a_directory',
-    'invalid_ignore_glob',
-    'invalid_sync_interval',
-    'repository_error',
-    'io_error',
-    'cancelled',
-  ];
-  if (known.includes(error.code)) {
-    return t(`sources.error.${error.code}`);
-  }
-  return t('sources.error.generic', { message: error.message });
-}
+import { errorText } from '../ui/error-text';
 
 interface AddFormProps {
   onAdd: (root: string, name: string) => void;
@@ -214,7 +191,7 @@ export function SourcesView() {
       <h2 data-el="sources-title">{t('sources.title')}</h2>
       {error ? (
         <p className="sources__error" data-el="sources-error" role="alert">
-          {errorText(t, error)}
+          {errorText(t, error, 'sources')}
           <button type="button" data-el="sources-error-dismiss" onClick={actions.dismissError}>
             {t('sources.dismissError')}
           </button>

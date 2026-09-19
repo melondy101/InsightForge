@@ -3,33 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { CoachTurn } from './api';
 import { useCoach } from './useCoach';
-import { type CommandErrorShape } from '../native/command-client';
-
-type Translate = (key: string, options?: Record<string, unknown>) => string;
-
-/** 陪练错误码 → i18n；未知码回退 generic（带原文供开发诊断）。 */
-function errorText(t: Translate, error: CommandErrorShape): string {
-  const known = [
-    'ai_disabled',
-    'ai_no_base_url',
-    'ai_no_model',
-    'ai_no_api_key',
-    'ai_http_status',
-    'invalid_response',
-    'max_rounds_reached',
-    'session_not_active',
-    'session_not_found',
-    'invalid_action',
-    'egress_error',
-    'repository_error',
-    'secret_store_error',
-    'client_error',
-  ];
-  if (known.includes(error.code)) {
-    return t(`coach.error.${error.code}`);
-  }
-  return t('coach.error.generic', { message: error.message });
-}
+import { errorText, type Translate } from '../ui/error-text';
 
 interface TurnRowProps {
   turn: CoachTurn;
@@ -100,7 +74,7 @@ export function CoachPanel({ draftId }: { draftId: string }) {
 
       {error ? (
         <p className="coach__error" data-el="coach-error" role="alert">
-          {errorText(t, error)}
+          {errorText(t, error, 'coach')}
           <button type="button" data-el="coach-error-dismiss" onClick={actions.dismissError}>
             {t('coach.dismiss')}
           </button>

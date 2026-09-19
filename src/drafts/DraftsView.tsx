@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useDraftsModel } from '../AppStateContext';
+import { errorText } from '../ui/error-text';
 
 function DraftsListView({ drafts, onOpen }: { drafts: { filename: string; updatedAt: string }[]; onOpen: (f: string) => void }) {
   const { t } = useTranslation();
@@ -114,7 +115,7 @@ export function DraftsView() {
 
       {error && (
         <div className="drafts-view__error" data-el="drafts-error">
-          <span>{error.message}</span>
+          <span>{errorText(t, error, 'drafts')}</span>
           <button type="button" onClick={actions.dismissError}>
             {t('drafts.dismiss')}
           </button>

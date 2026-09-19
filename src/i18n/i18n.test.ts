@@ -1,4 +1,6 @@
 import { expect, it } from 'vitest';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { i18n } from './index';
 import enUS from './locales/en-US.json';
 import zhCN from './locales/zh-CN.json';
@@ -87,4 +89,38 @@ it('检索时序契约文案在两种语言下可用（C14）', () => {
   expect(i18n.t('search.indexingPlaceholder')).toBe('Waiting for indexing…');
   expect(i18n.t('search.notSearchable')).toBe('Index not yet complete; search is unavailable');
   expect(i18n.t('search.indexLoading')).toBe('Waiting for index commit…');
+});
+
+/** 递归收集 src 下的 .ts/.tsx（跳过测试与语言包本身）。 */
+function sourcesUnder(dir: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const full = `${dir}/${name}`;
+    if (statSync(full).isDirectory()) return sourcesUnder(full);
+    if (!/\.(ts|tsx)$/.test(name) || /\.test\./.test(name) || name === 'i18n.test.ts') return [];
+    return [full];
+  });
+}
+
+it('源码里每个静态 t() 键都在两种语言里有文案（缺键即红）', () => {
+  const srcRoot = fileURLToPath(new URL('../', import.meta.url)).replace(/[\\/]$/, '');
+  const zhKeys = new Set(flattenKeys(zhCN));
+  const enKeys = new Set(flattenKeys(enUS));
+  // i18next 复数键写成 x_one / x_other，所以基名也算命中。
+  const hits = (keys: Set<string>, key: string) =>
+    keys.has(key) || keys.has(`${key}_one`) || keys.has(`${key}_other`);
+  const missing: { file: string; key: string }[] = [];
+  let used = 0;
+
+  for (const file of sourcesUnder(srcRoot)) {
+    const source = readFileSync(file, 'utf8');
+    for (const match of source.matchAll(/\bt\(\s*'([a-zA-Z0-9_.]+)'/g)) {
+      used += 1;
+      const key = match[1];
+      if (!hits(zhKeys, key) || !hits(enKeys, key)) missing.push({ file, key });
+    }
+  }
+
+  // 路径写错时这个断言会红，别让它扫了个空还「通过」。
+  expect(used).toBeGreaterThan(100);
+  expect(missing).toEqual([]);
 });

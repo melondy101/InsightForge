@@ -25,7 +25,7 @@ use crate::settings::Settings;
 const COACH_MAX_TOKENS: u32 = 400;
 
 /// 疑似代写时的本地安全提示（铁律 2：只提示、不改写）。
-/// 注：这段文字会进对话记录，尚未走 i18n（见 docs/HANDOFF.md 的文案债清单）。
+/// 注：这段文字会进对话记录，尚未走 i18n（见 docs/HANDOFF.md §三「已知文案与 seam 例外」）。
 const SUSPECTED_BODY_HINT: &str =
     "I can't write that for you. Try summarizing your idea in one sentence.";
 

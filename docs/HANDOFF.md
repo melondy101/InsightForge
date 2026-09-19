@@ -38,9 +38,21 @@
 
 ## 三、i18n 覆盖
 
-- 所有用户可见文案均经 `react-i18next` 的 `t()`，字符串存于 `src/i18n/locales/{zh-CN,en-US}.json`，无硬编码可见文案。
-- **键位对等校验**：`zh-CN` 与 `en-US` 各 **187 个叶子键，零差异**（脚本核对）。
-- 诊断模块新增 `diagnostics.*` 命名空间（导航、标题、介绍、快照/事件分区、刷新/复制/导出、已复制、加载错误、空日志），双语齐全。
+- 所有用户可见文案均经 `react-i18next` 的 `t()`，字符串存于 `src/i18n/locales/{zh-CN,en-US}.json`。
+- **键位对等校验**：`zh-CN` 与 `en-US` 各 **287 个叶子键，零差异**（`i18n.test.ts` 机械核对，不再靠脚本手算）。
+- **缺键即红**：`i18n.test.ts` 扫 `src/**` 里所有静态 `t('x.y')` 调用，任一键在任一语言缺失就失败；
+  动态拼出来的键（`errors.${code}`、`coach.action.${x}`）由各自的表兜底：
+  `src/ui/error-text.ts` 的 `ERROR_CODES` 是 Rust 各错误枚举 `code()` 的唯一前端清单，
+  `error-text.test.ts` 要求每个码在两种语言里都有一句话文案。新增错误码时补这两处即可，
+  用户不会再看到 `io_error` 这类裸码。
+- **已知文案与 seam 例外**（有意留下，不是遗漏）：
+  - `crates/core/src/coach.rs` 的 `SUSPECTED_BODY_HINT`：疑似代写时陪练回给作者的那句提示是英文常量，
+    它会进对话记录。核心层拿不到 i18n 实例，改成注入文案要连带改 `CoachService` 的构造签名，
+    因此暂记为文案债：要么由前端按错误码替换显示，要么把这句挪进出站前的 prompt 组装处。
+  - `src/sources/useSources.ts` 的 `pickDirectory` 动态 import `@tauri-apps/plugin-dialog`：
+    目录选择器是桌面专有能力，不在 `CommandClient` 的「命令/事件/版本」三件事之内。
+    网页 runtime 下这一段 `catch` 后返回 `null`（等于「用户没选目录」），同时把错误写进视图的
+    错误条——不抛穿界面，但用户会看到一句说明。
 
 ---
 
@@ -94,11 +106,11 @@
 - **R2 未在目标机（Windows 11，无 WebView2 的干净环境）跑过 E2E**：`e2e/golden-path.spec.ts` 因 `INSIGHTFORGE_E2E_RUN=1` 且 WebView2 可用才运行，当前环境无 WebView2，**7 条黄金路径全部 BLOCKED 而非假绿**。功能正确性由单元/集成测试与手动脚本 `e2e/manual/verify.ps1` 覆盖，但端到端未被本机证实。
 
 ### P1（发布后近期应处理）
-- **R3 诊断版本号取自 Tauri 专有 API**：版本号本身已收敛到单一真源（workspace `Cargo.toml`，
-  `config_does_not_second_guess_the_version` + CI 的 tag/Cargo/package.json 一致性检查钉住），
-  原来的「两处版本漂移」风险已关闭。留下的是取用方式：
-  `src/diagnostics/DiagnosticsView.tsx` 直接 `import { getVersion } from '@tauri-apps/api/app'`，
-  绕过了 `CommandClient` seam——浏览器 runtime 里这一调用必然失败。归入网页 runtime 待办。
+- **R3 诊断版本号取自 Tauri 专有 API**：已关闭。版本号取自单一真源（workspace `Cargo.toml`，
+  `config_does_not_second_guess_the_version` + CI 的 tag/Cargo/package.json 一致性检查钉住）；
+  取用方式也已收进 seam——`DiagnosticsView` 不再 import `@tauri-apps/api/app`，
+  改问 `CommandClient.appVersion()`（桌面问 Tauri 运行时，网页用构建期注入值）。
+  仍留在 seam 之外的只有一处例外，见 §三「已知文案与 seam 例外」。
 - **R4 错误提示可能含本地路径**：`CommandError.message` 会透出底层错误字符串（如 DB/IO 路径），仅在应用内对本人可见，不会进入外发诊断；但若后续接入遥测须先过滤。
 - **R5 冲突三方解决的用户引导**：`DraftsView` 已暴露 `data-el` 钩子与三种选择，但无「为什么冲突」的解释文案，首次遇到易困惑（属反代写定位：提示优先于替写，可接受）。
 

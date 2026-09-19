@@ -35,6 +35,9 @@
 - **逐项交付**：一个功能一条 commit，本地跑通验证后单独推送到远端。
 - **反代写定位**：新功能应服务于「AI 只出骨架/提示、血肉由创作者写」。检查/提示类能力（只提示不改写）优先于替写类。
 - **i18n**：用户可见文案一律走 `react-i18next` 的 `t()`，字符串存 `src/i18n/locales/{zh-CN,en-US}.json`，不硬编码。
+  两语言键必须对等，且源码里每个静态 `t()` 键都要有文案——由 `src/i18n/i18n.test.ts` 机械拦下。
+  命令错误的文案走 `src/ui/error-text.ts`：`ERROR_CODES` 是 Rust `code()` 的唯一前端清单，
+  公共文案在 `errors.*`，视图需要更具体的下一步时用 `errorText(t, error, 'viewNamespace')` 覆盖。
 
 ## 五、Tauri 命令清单（只注册业务命令）
 

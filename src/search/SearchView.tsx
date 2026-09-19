@@ -6,21 +6,7 @@ import { referencesApi } from '../references/api';
 import { sourcesApi, type IndexStatus } from '../sources/api';
 import { useAppState } from '../AppStateContext';
 import { toCommandError, type CommandErrorShape } from '../native/command-client';
-
-function errorText(
-  t: (key: string, options?: Record<string, unknown>) => string,
-  error: CommandErrorShape,
-): string {
-  const known = [
-    'repository_error',
-    'source_not_found',
-    'invalid_query',
-  ];
-  if (known.includes(error.code)) {
-    return t(`search.error.${error.code}`);
-  }
-  return t('search.error.generic', { message: error.message });
-}
+import { errorText } from '../ui/error-text';
 
 interface SearchViewProps {
   sourceId: string;
@@ -127,7 +113,7 @@ export function SearchView({ sourceId, sourceName }: SearchViewProps) {
 
       {error ? (
         <p className="search__error" data-el="search-error" role="alert">
-          {errorText(t, error)}
+          {errorText(t, error, 'search')}
         </p>
       ) : null}
 
