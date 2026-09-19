@@ -285,3 +285,15 @@ src-tauri/gen/schemas/
 /e2e-results.json
 /e2e/evidence/
 /e2e-report/
+
+# LaTeX/Pandoc 手册渲染的中间产物（另一条任务线的生成物，纯噪音，不入库）。
+# 只吞中间文件：报告源码（.md/.tex）与 PDF 成品仍留给「要不要入库」这个决定本身。
+*.aux
+*.bcf
+*.run.xml
+*.synctex.gz
+/OPTIMIZATION_REPORT*.out
+/OPTIMIZATION_REPORT*.toc
+/docs/*.out
+/docs/*.toc
+/test-results/

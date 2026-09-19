@@ -137,6 +137,20 @@
 
 ## 八、本分支 cleanliness
 
-- 已提交：Phase A–F 全部功能提交，每功能独立 commit。
-- 未跟踪（按约定排除，未纳入提交）：`docs/redesign/`（早期原型，与本任务无关）。
-- 无密钥、无草稿/来源内容、无用户路径进入提交或诊断产物。
+- 已提交：Phase A–F 全部功能提交，每功能独立 commit；本轮另加 8 个清偿技术债的 commit
+  （SyncBundle、devices、部署即更新、sync_interval、coach 前端、错误码文案、样式契约、seam 收口）。
+- 工作树未跟踪 **54 个文件，全部来自另一条任务线（Markdown→LaTeX→PDF 报告渲染）**，
+  本分支一律未纳入提交。分类与各自要谁定：
+  - 报告成品与源码：`docs/OPTIMIZATION_REPORT*.{md,tex,pdf}`、`OPTIMIZATION_REPORT.pdf`、
+    `docs/{book_preamble,report_template,elegantbook.cls}`、`preprocess_report.py`
+    —— 要不要入库由这条任务线的作者决定；本分支不替它做决定。
+  - `docs/latex-template/elegantbook/`：第三方模板**含 License**，若入库需按 vendored 依赖对待
+    （保留 License、别改源码），否则留在工作树外。
+  - `docs/test_math*.{tex,md,pdf}`、`docs/test_pandoc*.{tex,md}`：一次性探针（数学/ Pandoc 渲染试验），
+    是删除候选；删除属破坏性操作，需本人确认，故只记录不动手。
+  - `docs/redesign/`：早期原型，按既有约定排除。
+- 已忽略的纯生成物：LaTeX 中间文件（`*.aux`/`*.bcf`/`*.run.xml`/`*.synctex.gz`、
+  `*.out`/`*.toc`）与 `test-results/`。这 12 个文件此前混在未跟踪列表里，
+  让「工作树脏了多少」这件事失真。
+- 无密钥、无草稿/来源内容、无用户绝对路径进入提交或诊断产物；
+  同步载荷这一条由 `sync_bundle_contract.rs` 逐字节守着（见 §六 R 清单与 ADR 0002 §5）。
