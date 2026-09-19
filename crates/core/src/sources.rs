@@ -26,6 +26,20 @@ use crate::store::{self, StoredFileWithIdentity, StoredSource};
 /// 进度事件 sink：Tauri 壳接事件通道，测试接收集器。
 pub type EventSink = Arc<dyn Fn(SourceEvent) + Send + Sync>;
 
+/// 间隔校验的可选周期（分钟）。PRD/ARCHITECTURE 一致写明只有 5/15/30 三档：
+/// 补扫是幂等的，但要花钱（全树 hash），所以不允许把周期调到 1 分钟去「求安心」。
+pub const SYNC_INTERVAL_CHOICES: &[u32] = &[5, 15, 30];
+/// 没有显式设置时使用的周期。间隔是「最终一致」的兜底，所以默认开着而不是关闭。
+pub const DEFAULT_SYNC_INTERVAL_MINUTES: u32 = 15;
+
+/// 间隔在 `app_setting` 里的键名前缀。写侧与 `store` 的 JOIN 读侧共用同一份常量，
+/// 免得两处字符串各写一半而悄悄读不到（这正是这个设置此前失效的形态）。
+pub(crate) const SYNC_INTERVAL_KEY_PREFIX: &str = "sources.sync_interval.";
+
+fn sync_interval_key(id: &str) -> String {
+    format!("{SYNC_INTERVAL_KEY_PREFIX}{id}")
+}
+
 /// 来源当前状态。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -82,6 +96,8 @@ pub struct SourceSummary {
     pub file_count: u64,
     pub ignore_globs: Vec<String>,
     pub last_synced_at: Option<String>,
+    /// 间隔校验周期（分钟）；设置界面据此显示当前档位。
+    pub sync_interval_minutes: u32,
     /// 进行中的补扫进度；空闲或已落省时为 `None`。
     /// 列表带着状态而非只靠事件推送：错过（或丢掉）结束事件不会留下卡住的进度条。
     pub progress: Option<JobSnapshot>,
@@ -113,6 +129,8 @@ pub enum SourcesError {
     AlreadyIndexing(String),
     #[error("invalid relative path (rejected): {0}")]
     InvalidRelPath(String),
+    #[error("{0} is not one of the supported sync intervals (5, 15, 30 minutes)")]
+    InvalidSyncInterval(u32),
     #[error(transparent)]
     Scan(#[from] crate::scan::ScanError),
     #[error(transparent)]
@@ -133,6 +151,7 @@ impl SourcesError {
             SourcesError::SourcePaused(_) => "source_paused",
             SourcesError::AlreadyIndexing(_) => "already_indexing",
             SourcesError::InvalidRelPath(_) => "invalid_rel_path",
+            SourcesError::InvalidSyncInterval(_) => "invalid_sync_interval",
             SourcesError::Scan(scan_error) => match scan_error {
                 crate::scan::ScanError::InvalidRoot(_) => "invalid_root",
                 crate::scan::ScanError::RootNotADirectory(_) => "root_not_a_directory",
@@ -209,6 +228,7 @@ impl Sources {
             paused: false,
             ignore_globs,
             last_synced_at: None,
+            sync_interval_minutes: DEFAULT_SYNC_INTERVAL_MINUTES,
         };
         let row = source.clone();
         self.repo
@@ -236,6 +256,7 @@ impl Sources {
                 file_count: u64::try_from(file_count).unwrap_or(0),
                 ignore_globs: source.ignore_globs,
                 last_synced_at: source.last_synced_at,
+                sync_interval_minutes: source.sync_interval_minutes,
             })
             .collect())
     }
@@ -366,13 +387,17 @@ impl Sources {
         self.spawn_backfill(&source)
     }
 
-    /// 设置同步间隔（分钟）。返回更新后的来源摘要。
+    /// 设置同步间隔（分钟），只接受 [`SYNC_INTERVAL_CHOICES`] 里的档位。
+    /// 返回更新后的来源摘要。
     pub fn set_sync_interval(
         &self,
         id: &str,
         interval_minutes: u32,
     ) -> Result<SourceSummary, SourcesError> {
-        let source = self
+        if !SYNC_INTERVAL_CHOICES.contains(&interval_minutes) {
+            return Err(SourcesError::InvalidSyncInterval(interval_minutes));
+        }
+        let mut source = self
             .repo
             .read({
                 let id = id.to_string();
@@ -380,14 +405,40 @@ impl Sources {
             })?
             .ok_or_else(|| SourcesError::SourceNotFound(id.to_string()))?;
 
-        let key = format!("sources.sync_interval.{}", source.id);
+        let key = sync_interval_key(&source.id);
         let value = interval_minutes.to_string();
         self.repo.write(move |conn| {
             crate::settings::set_setting(conn, &key, &value)?;
             Ok(())
         })?;
+        source.sync_interval_minutes = interval_minutes;
 
         self.summary_of(&source)
+    }
+
+    /// 到点该做间隔校验的来源 id。暂停的、正在补扫的不算；
+    /// 从没同步成功过的算到点（首次补扫可能没跑完就退出了）。
+    ///
+    /// `now` 由调用方给（存储格式的同一时钟），这样「到点没有」这条规则
+    /// 能在测试里被确定地检查，而不是等 15 分钟。
+    pub fn sync_due(&self, now: &str) -> Result<Vec<String>, SourcesError> {
+        let rows = self.repo.read(store::list_sources)?;
+        let mut due = Vec::new();
+        for (source, _) in rows {
+            if source.paused || self.jobs.is_indexing(&source.id) {
+                continue;
+            }
+            let elapsed = source
+                .last_synced_at
+                .as_deref()
+                .and_then(|last_synced_at| crate::clock::minutes_since(last_synced_at, now))
+                // 从没同步成功过、或时间戳读不懂：按已到点处理，补一次就会自愈。
+                .unwrap_or(i64::from(source.sync_interval_minutes));
+            if elapsed >= i64::from(source.sync_interval_minutes) {
+                due.push(source.id);
+            }
+        }
+        Ok(due)
     }
 
     /// 移除来源：先让进行中的补扫停止，再清理索引记录。
@@ -409,6 +460,12 @@ impl Sources {
         let removed_id = id.to_string();
         self.repo
             .write(move |conn| store::delete_source_tree(conn, &removed_id))?;
+        // 间隔写在 KV 里，不会随来源行一起消失；不清掉就是永久的孤儿设置。
+        let interval_key = sync_interval_key(id);
+        self.repo.write(move |conn| {
+            crate::settings::delete_setting(conn, &interval_key)?;
+            Ok(())
+        })?;
         Ok(())
     }
 
@@ -535,6 +592,7 @@ impl Sources {
             file_count: u64::try_from(file_count).unwrap_or(0),
             ignore_globs: source.ignore_globs.clone(),
             last_synced_at: source.last_synced_at.clone(),
+            sync_interval_minutes: source.sync_interval_minutes,
             progress: self.jobs.running(&source.id),
         })
     }

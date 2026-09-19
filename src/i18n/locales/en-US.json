@@ -66,6 +66,7 @@
       "invalid_rel_path": "Invalid path detected and rejected",
       "repository_error": "Database operation failed",
       "io_error": "Failed to read file",
+      "invalid_sync_interval": "Sync interval must be 5, 15, or 30 minutes",
       "cancelled": "Operation cancelled",
       "generic": "Operation failed: {{message}}"
     },

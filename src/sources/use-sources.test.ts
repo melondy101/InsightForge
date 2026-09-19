@@ -284,6 +284,7 @@ function source(
     fileCount: 2,
     ignoreGlobs: [],
     lastSyncedAt: null,
+    syncIntervalMinutes: 15,
     progress: progress ? { ...progress, phase: 'indexing', fragmentCount: 0 } : null,
   } as unknown as Awaited<ReturnType<typeof sourcesApi.list>>[number];
 }

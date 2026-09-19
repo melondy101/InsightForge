@@ -119,7 +119,8 @@ fn run_backfill_inner(
     }
 
     let synced_id = source.id.clone();
-    repo.write(move |conn| store::touch_last_synced(conn, &synced_id))?;
+    let synced_at = crate::clock::now_iso();
+    repo.write(move |conn| store::touch_last_synced(conn, &synced_id, &synced_at))?;
     sink(SourceEvent::BackfillCompleted {
         source_id: source.id.clone(),
         indexed_files: total_files,

@@ -66,6 +66,7 @@
       "invalid_rel_path": "检测到非法路径，已拒绝",
       "repository_error": "数据库操作失败",
       "io_error": "读取文件失败",
+      "invalid_sync_interval": "同步间隔只能是 5、15 或 30 分钟",
       "cancelled": "操作已取消",
       "generic": "操作失败：{{message}}"
     },

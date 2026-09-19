@@ -15,7 +15,7 @@ use insightforge_core::egress::{
 use insightforge_core::references::CreateReference;
 use insightforge_core::thoughts::{ThoughtCard, ThoughtsError, ThoughtsService, UpsertThoughtCard};
 use insightforge_core::{
-    AiSampleReply, AiSettings, CoachError, CoachService, CoachSession, CoachTurn, Device,
+    now_iso, AiSampleReply, AiSettings, CoachError, CoachService, CoachSession, CoachTurn, Device,
     DeviceRegistry, DevicesError, DraftsError, DraftsService, EventSink, KeyringStore,
     ReferencesError, ReferencesService, Repository, RepositoryError, SearchError, SearchService,
     Settings, SettingsError, SourceEvent, SourceSummary, Sources, SourcesError,
@@ -583,6 +583,38 @@ fn export_write_clipboard(
         })
 }
 
+/// 间隔校验兜底：ARCHITECTURE 写明「watcher 不是事实来源」，最终一致由启动补扫、
+/// 手动同步与 5/15/30 分钟间隔校验共同负责。到点判定全在 core 的 `sync_due` 里，
+/// 这里只负责每分钟醒一次——所以可测的是规则，不是这个循环。
+fn spawn_sync_interval_ticker(sources: Arc<Sources>) {
+    const TICK: std::time::Duration = std::time::Duration::from_secs(60);
+    if let Err(err) = std::thread::Builder::new()
+        .name("sync-interval-ticker".to_string())
+        .spawn(move || loop {
+            std::thread::sleep(TICK);
+            let now = now_iso();
+            let due = match sources.sync_due(&now) {
+                Ok(due) => due,
+                Err(err) => {
+                    eprintln!("[insightforge] sync tick skipped: code={}", err.code());
+                    continue;
+                }
+            };
+            for id in due {
+                if let Err(err) = sources.sync(&id) {
+                    eprintln!(
+                        "[insightforge] sync tick failed for {}: code={}",
+                        id,
+                        err.code()
+                    );
+                }
+            }
+        })
+    {
+        eprintln!("[insightforge] sync interval ticker unavailable: {err}");
+    }
+}
+
 /// 把来源索引事件转成脱敏的结构化日志条目：只记来源 id 与计数，绝不记 rel_path / message
 ///（可能泄露用户文件路径或错误细节）。事件名稳定为 `source.<stage>`。
 fn log_source_event(log: &mut EventLog, event: &SourceEvent) {
@@ -695,7 +727,9 @@ pub fn run() {
                     log_source_event(&mut log, &event);
                 }
             });
-            app.manage(SourcesState(Arc::new(Sources::new(Arc::clone(&db), sink))));
+            let sources = Arc::new(Sources::new(Arc::clone(&db), sink));
+            app.manage(SourcesState(Arc::clone(&sources)));
+            spawn_sync_interval_ticker(sources);
 
             // 03 号票：检索服务——只读 FTS5 + 回退线性扫描
             let search = Arc::new(SearchService::new(Arc::clone(&db)));

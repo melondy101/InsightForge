@@ -7,6 +7,9 @@ import { callCommand } from '../native/command-client';
 
 export type SourceStatus = 'idle' | 'indexing';
 
+/** 可选的间隔校验周期，与 crates/core/src/sources.rs 的 SYNC_INTERVAL_CHOICES 一致。 */
+export const SYNC_INTERVAL_CHOICES = [5, 15, 30] as const;
+
 export interface SourceSummary {
   id: string;
   name: string;
@@ -16,6 +19,8 @@ export interface SourceSummary {
   fileCount: number;
   ignoreGlobs: string[];
   lastSyncedAt: string | null;
+  /** 间隔校验周期（分钟）：到点由后台心跳补扫一次。 */
+  syncIntervalMinutes: number;
   /** 进行中的补扫进度；空闲或已落省时为 null。 */
   progress: SourceJobProgress | null;
 }

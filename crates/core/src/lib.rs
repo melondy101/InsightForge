@@ -63,6 +63,7 @@ pub use settings::{
 };
 pub use sources::{
     EventSink, IndexStatus, SourceEvent, SourceStatus, SourceSummary, Sources, SourcesError,
+    DEFAULT_SYNC_INTERVAL_MINUTES, SYNC_INTERVAL_CHOICES,
 };
 pub use store::{
     files_of_source_with_identity, mark_files_missing, rename_file, StoredFileWithIdentity,

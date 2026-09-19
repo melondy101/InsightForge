@@ -79,6 +79,8 @@ Tauri 2 的 permissions / scopes / capabilities 负责命令与窗口绑定；�
 ## 5. 索引与检索
 
 - **watcher 不是事实来源**。文件事件只负责尽快触发工作；启动补扫、手动同步、5/15/30 分钟间隔校验负责最终一致（跨平台 watcher 对网络文件系统和超大目录可能遗漏事件）。
+  间隔校验已落地：桌面壳每分钟心跳调用 core 的 `Sources::sync_due(now)`，到点的未暂停来源补扫一次；
+  档位（5/15/30，默认 15）与到点判定都在 `crates/core/src/sources.rs`，契约见 `crates/core/tests/sync_interval_contract.rs`。
 - 增量流程：
   1. 规范化并验证授权根目录；默认不跟随逃出根目录的 symlink。
   2. 遍历允许的扩展名与 ignore globs，记录稳定文件标识（可用时）、规范路径、size、mtime、内容 hash。

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { SourceSummary } from './api';
+import { SYNC_INTERVAL_CHOICES } from './api';
 import { progressPercent } from './progress';
 import { useSources } from './useSources';
 import { type CommandErrorShape } from '../native/command-client';
@@ -18,6 +19,7 @@ function errorText(t: (key: string, options?: Record<string, unknown>) => string
     'invalid_root',
     'root_not_a_directory',
     'invalid_ignore_glob',
+    'invalid_sync_interval',
     'repository_error',
     'io_error',
     'cancelled',
@@ -109,9 +111,20 @@ interface SourceRowProps {
   onReconcile: (id: string) => void;
   onRebuildIndex: (id: string) => void;
   onRemove: (id: string) => void;
+  onSetSyncInterval: (id: string, intervalMinutes: number) => void;
 }
 
-function SourceRow({ source, progress, t, onPause, onSync, onReconcile, onRebuildIndex, onRemove }: SourceRowProps) {
+function SourceRow({
+  source,
+  progress,
+  t,
+  onPause,
+  onSync,
+  onReconcile,
+  onRebuildIndex,
+  onRemove,
+  onSetSyncInterval,
+}: SourceRowProps) {
   const status = source.paused
     ? t('sources.status.paused')
     : source.status === 'indexing'
@@ -142,6 +155,21 @@ function SourceRow({ source, progress, t, onPause, onSync, onReconcile, onRebuil
         ) : null}
       </span>
       <span className="sources__row-actions" data-el="sources-row-actions">
+        <label className="sources__interval" data-el="sources-row-interval">
+          <span>{t('sources.syncInterval')}</span>
+          <select
+            data-el="sources-interval-select"
+            aria-label={t('sources.syncInterval')}
+            value={source.syncIntervalMinutes}
+            onChange={(event) => onSetSyncInterval(source.id, Number(event.target.value))}
+          >
+            {SYNC_INTERVAL_CHOICES.map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {t('sources.syncIntervalMinutes', { minutes })}
+              </option>
+            ))}
+          </select>
+        </label>
         <button type="button" data-el="sources-sync-btn" onClick={() => onSync(source.id)}>
           {t('sources.sync')}
         </button>
@@ -226,6 +254,7 @@ export function SourcesView() {
                   onReconcile={(id) => void actions.reconcile(id)}
                   onRebuildIndex={(id) => void actions.rebuildIndex(id)}
                   onRemove={(id) => void actions.remove(id)}
+                  onSetSyncInterval={(id, minutes) => void actions.setSyncInterval(id, minutes)}
                 />
               ))}
             </ul>

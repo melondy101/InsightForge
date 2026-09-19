@@ -1100,6 +1100,14 @@ ul:has(> .sources__row) {
   font-family: var(--mono);
 }
 
+.sources__interval {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
 .sources__row-actions {
   display: flex;
   gap: 6px;
