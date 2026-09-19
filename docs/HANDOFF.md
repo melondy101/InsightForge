@@ -54,34 +54,51 @@
    - `MUST_NOT_LOG_KEYS`（apiKey/token/secret/authorization/content/body/key/cookie/credential/password…）命中即静默替换为 `[redacted]`。
    - 来源索引事件经 `log_source_event` 仅记录 `source`（来源 id）+ 计数，**绝不记录 `rel_path` / `message`**。
 3. **静态扫描**：全仓源码对 `sk-…`、私钥头、AWS Key、明文 password 等模式扫描，**无真实密钥**。唯一命中的是 `diagnostics.rs` 的脱敏*测试固件*（断言不泄露），非真实凭证。
-4. **提交物**：扫描确认无密钥入仓。仓内 `tauri.conf.json` 的 `pubkey` 为 Tauri **官方测试回退公钥**（`dW50cnVzdGVkIGJ5IHNpbW9sZiBvciB0ZXN0`），属 dev 占位，**真实公钥在发布构建时由 `INSIGHTFORGE_UPDATER_PUBKEY` 注入**，并有测试守护防止被硬编码替换。
+4. **提交物**：扫描确认无密钥入仓。仓内 `tauri.conf.json` 的 `pubkey` 是**真实 minisign 公钥**
+   （公钥是公开数据，进仓是设计如此），与之配对的**私钥不在仓内、不在任何文档里**，
+   目前只在构建机上（见 `docs/RELEASE-RUNBOOK.md` §0 C3 的待办）。守护测试
+   `shipped_updater_pubkey_is_a_real_minisign_key` 钉住 `dW50cnVzdGVkIGNvbW1lbnQ6` 前缀与长度——
+   Tauri 官方测试回退串的前缀不同，被换回去就会红。
 5. **AI Key**：存于系统凭据库，保存后不回显（见 `settings` i18n）。
 
 ---
 
 ## 五、发布就绪（Phase E 结论）
 
-- `src-tauri/build.rs` 已 **fail-closed**：`cfg!(not(debug_assertions))` 下缺失 `INSIGHTFORGE_UPDATER_PUBKEY` / `INSIGHTFORGE_UPDATER_ENDPOINT` / `INSIGHTFORGE_CERT_THUMBPRINT` 任一即 panic；dev 构建不受影响（回退测试公钥 + 本地占位端点）。
-- `src-tauri/tauri.conf.json`：`certificateThumbprint` 走 `${env.INSIGHTFORGE_CERT_THUMBPRINT}`，`endpoints` 为 `https://localhost/updater-dev.json`（dev 占位），`timestampUrl` 为 HTTPS（DigiCert）。
-- 新增 **2 个 manifest 守护测试**（`committed_endpoint_is_dev_placeholder` / `committed_pubkey_is_test_fallback`）确保仓库永不意外硬编码真实值。
+- 发布动作已迁到 CI：`v*` tag 触发 `.github/workflows/release.yml`（Windows 打包 → minisign 签名
+  → GitHub Release 草稿 + 自动生成的 `latest.json`）。
+- `src-tauri/build.rs` 的 fail-closed 只剩一条硬要求：release 构建必须有真实
+  `INSIGHTFORGE_UPDATER_ENDPOINT`（空值与 dev 占位值都算缺，直接 panic）。
+  `INSIGHTFORGE_CERT_THUMBPRINT` 缺省时只发 `cargo:warning`——安装包不签名，但 updater 校验照常。
+- `tauri.conf.json`：`endpoints` 保留 dev 占位（release 由 build.rs 覆盖），
+  `pubkey` 是真实 minisign 公钥，**不含任何 `${env.VAR}`**——该语法只对少数字段插值，
+  其余会原样进二进制（曾导致 `signtool` 把占位串当证书名）。
+- **4 个配置守护测试**：`committed_endpoint_is_dev_placeholder`、
+  `shipped_updater_pubkey_is_a_real_minisign_key`、`config_does_not_second_guess_the_version`、
+  `config_has_no_uninterpolated_env_placeholders`。
 
-### 外部依赖（C1–C4，明确为用户待办，非本次完成）
-见 `docs/RELEASE-RUNBOOK.md`：
-- **C1** 真实代码签名证书（Windows Authenticode，含 EV 可选）。
-- **C2** 真实更新推送端点 + 签名私钥（对应 `INSIGHTFORGE_UPDATER_ENDPOINT` / `INSIGHTFORGE_UPDATER_PUBKEY`）。
-- **C3** 证书指纹（`INSIGHTFORGE_CERT_THUMBPRINT`）。
-- **C4** 时间戳服务（已配 DigiCert HTTPS；如需自建再定）。
+### 外部依赖（C1–C4，编号与 `docs/RELEASE-RUNBOOK.md` §0 一致）
+- **C1** 代码签名证书（可选；缺省只是 SmartScreen 提示）。
+- **C2** updater 清单端点：release.yml 已给出 GitHub Release 地址，但要求仓库真的被推送。
+- **C3** updater minisign 私钥：密钥对已生成，**私钥尚未进 CI secret**（当前在构建机 temp 目录）。
+- **C4** 安装 → 升级 E2E：未执行。
 
 ---
 
 ## 六、风险清单（P0 / P1 / P2）
 
 ### P0（发布前必清，缺一则不应发布）
-- **R1 真实签名/更新物料缺失**：C1–C4 未就绪前，release 构建会因 `build.rs` fail-closed 直接失败——这是**预期的保护**，不是 bug。必须由你提供真实物料后构建。
+- **R1 updater 私钥未托管**：密钥对已经生成，但私钥目前**只在构建机的 temp 目录**，
+  没有 GitHub 仓库 secret。缺它时 release.yml 第一步就退出（预期的 fail-closed，不是 bug）；
+  更糟的情形是私钥随 temp 丢失——已发布的客户端将永远收不到后续更新。见 `docs/RELEASE-RUNBOOK.md` §0。
 - **R2 未在目标机（Windows 11，无 WebView2 的干净环境）跑过 E2E**：`e2e/golden-path.spec.ts` 因 `INSIGHTFORGE_E2E_RUN=1` 且 WebView2 可用才运行，当前环境无 WebView2，**7 条黄金路径全部 BLOCKED 而非假绿**。功能正确性由单元/集成测试与手动脚本 `e2e/manual/verify.ps1` 覆盖，但端到端未被本机证实。
 
 ### P1（发布后近期应处理）
-- **R3 诊断快照不含应用版本语义**：`version` 来自前端 `getVersion()`，若与 `tauri.conf.json` 的 `package.version` 不一致会误导排障——建议统一来源。
+- **R3 诊断版本号取自 Tauri 专有 API**：版本号本身已收敛到单一真源（workspace `Cargo.toml`，
+  `config_does_not_second_guess_the_version` + CI 的 tag/Cargo/package.json 一致性检查钉住），
+  原来的「两处版本漂移」风险已关闭。留下的是取用方式：
+  `src/diagnostics/DiagnosticsView.tsx` 直接 `import { getVersion } from '@tauri-apps/api/app'`，
+  绕过了 `CommandClient` seam——浏览器 runtime 里这一调用必然失败。归入网页 runtime 待办。
 - **R4 错误提示可能含本地路径**：`CommandError.message` 会透出底层错误字符串（如 DB/IO 路径），仅在应用内对本人可见，不会进入外发诊断；但若后续接入遥测须先过滤。
 - **R5 冲突三方解决的用户引导**：`DraftsView` 已暴露 `data-el` 钩子与三种选择，但无「为什么冲突」的解释文案，首次遇到易困惑（属反代写定位：提示优先于替写，可接受）。
 

@@ -1,7 +1,7 @@
 name: Release
 
 # 发版即打 tag：`v*` 触发 Windows 安装包构建、签名、上传到 GitHub Release，
-# 并生成 updater 清单 latest.json（ADR 0002 §7）。
+# 并生成 updater 清单 latest.json（ADR 0002 §6）。
 #
 # 版本号只有一个来源：workspace Cargo.toml 的 version（tauri.conf.json 故意不写 version，
 # 由桌面 crate 继承它；package.json 的 version 只是陪跑，CI 会拦住两者的漂移）。

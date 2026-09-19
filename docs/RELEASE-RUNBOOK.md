@@ -9,39 +9,50 @@
 
 ---
 
-## 0. 不可发布的外部依赖（必须由用户提供）
+## 0. 发布还缺的外部条件（必须由用户提供）
 
-以下四项（与 `release-readiness.md` 的 C1–C4 对应）**本分支未做、也无法在本地伪造**，
-必须由用户在真实 Windows 环境提供后才能发布：
+发布动作已经由 `.github/workflows/release.yml` 接管（打 `v*` tag → Windows 打包 →
+minisign 签名 → 上传 GitHub Release 草稿 → 自动生成 `latest.json`）。剩下的缺口是**凭据与验收**：
 
 | ID | 依赖 | 当前状态 | 缺失时的行为 |
 |----|------|----------|--------------|
-| C1 | 代码签名证书（含 thumbprint） | 未提供 | release 构建失败（fail-closed） |
-| C2 | HTTPS updater endpoint（`https://…/updater.json` 托管） | 未提供；`tauri.conf.json` 现为 dev 占位 `https://localhost/updater-dev.json` | 升级不可用（按红线不伪造升级） |
-| C3 | updater 签名密钥对（公钥上架 manifest） | 未提供 | release 构建失败（fail-closed） |
-| C4 | 安装 → 升级 E2E | 未执行 | 依赖 C1–C3 与真实环境 |
+| C1 | Windows 代码签名证书（thumbprint） | 未提供；**已降级为可选** | 安装包不签名，首次下载有 SmartScreen 提示；updater 校验不受影响（`build.rs` 只 warn） |
+| C2 | updater 清单托管 | 端点由 release.yml 注入 `https://github.com/<repo>/releases/latest/download/latest.json`；**前提是该仓库真的被推送并有 Release** | 本地 `tauri build` 缺 `INSIGHTFORGE_UPDATER_ENDPOINT` → `build.rs` panic；装了包的客户端收不到更新 |
+| C3 | updater minisign 私钥 | 密钥对已生成，公钥已随 `tauri.conf.json` 进仓；**私钥目前只在 `C:\Users\20145\AppData\Local\Temp\insightforge-updater.key`** | 未配置 `TAURI_SIGNING_PRIVATE_KEY` → release.yml 第一步就 fail-closed 退出；产不出 `.sig` 的包会被客户端拒绝 |
+| C4 | 安装 → 升级 E2E | 未执行 | 依赖 C3 上线与真实环境 |
 
 **用户待办（明确交接）**：
-1. 申请/采购 Windows 代码签名证书，记录其 thumbprint。
-2. 准备 HTTPS 托管的 `updater.json` 端点与对应私钥。
-3. 用私钥签名 `updater.json`（与 C3 公钥配对）。
-4. 在已签名安装包上跑「安装旧版 → 升级新版」E2E（见 `e2e/manual/verify.ps1`）。
+1. **立刻**把私钥内容存入 GitHub 仓库 secret `TAURI_SIGNING_PRIVATE_KEY`，并在仓库之外再备份一份
+   （temp 目录随时会没）。丢了它，已发布的客户端永远收不到后续更新。有口令则配
+   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，无口令留空。
+2. 需要消除 SmartScreen 提示时，采购证书并配 `INSIGHTFORGE_CERT_THUMBPRINT`（可选）。
+3. 推送分支与 tag（本仓库当前所有 commit 仍在本地）。
+4. 在真实 Windows 上跑「安装旧版 → 升级新版」E2E（见 `e2e/manual/verify.ps1`）。
 
 ---
 
-## 1. 发布构建的环境变量（fail-closed）
+## 1. 发布构建的环境变量与守护测试
 
-release 构建（`cfg!(not(debug_assertions))`）由 `src-tauri/build.rs` 强制校验以下变量，
-**缺失即 panic，绝不会静默产出不完整产物**：
+`src-tauri/build.rs` 只把**必须为真**的事留在构建期强制：
 
 | 变量 | 用途 | 未设置时 |
 |------|------|----------|
-| `INSIGHTFORGE_UPDATER_PUBKEY` | updater 公钥（与 C3 私钥配对） | release 启动 panic（`updater_pubkey()` fail-closed） |
-| `INSIGHTFORGE_UPDATER_ENDPOINT` | 真实 HTTPS updater 端点（C2） | release 构建 panic；dev 回退到占位 URL |
-| `INSIGHTFORGE_CERT_THUMBPRINT` | 代码签名证书指纹（C1） | `tauri.conf.json` 的 `${env.INSIGHTFORGE_CERT_THUMBPRINT}` 留空 → 签名步骤失败 |
+| `INSIGHTFORGE_UPDATER_ENDPOINT` | 真实 updater 清单地址（C2） | release 构建 panic（空值与 dev 占位值都算缺）；dev 构建不受影响 |
+| `TAURI_SIGNING_PRIVATE_KEY`（+ `_PASSWORD`） | 给 `.msi`/`.exe` 产 minisign 签名 | Tauri CLI 报「有公钥无私钥」，构建失败 |
+| `INSIGHTFORGE_CERT_THUMBPRINT` | Authenticode 代码签名（C1） | 只发 `cargo:warning`，照常出包，包不签名 |
 
-> `updater.pubkey` 在 `tauri.conf.json` 中当前是**测试公钥**；开发模式（`debug`）回退到它，
-> 保证本地 `tauri dev` 可运行；release 必须用 `INSIGHTFORGE_UPDATER_PUBKEY` 覆盖。
+机制上有一条必须记住的约束：**`tauri.conf.json` 里的 `${env.VAR}` 不会对所有字段插值**，
+未插值的字符串会原样进二进制——endpoint 会让 updater 插件反序列化 panic，
+certificateThumbprint 会让 `signtool` 把占位串当证书名。因此 endpoint 与证书都由
+`build.rs` 以 `TAURI_CONFIG` 合并注入（`set_var` + `cargo:rustc-env` 两份缺一不可），
+配置文件里只保留 dev 占位端点与**真实**签名公钥。
+
+四条守护测试钉住这些事实（`src-tauri/src/lib.rs`）：
+`committed_endpoint_is_dev_placeholder`、`shipped_updater_pubkey_is_a_real_minisign_key`、
+`config_does_not_second_guess_the_version`、`config_has_no_uninterpolated_env_placeholders`。
+
+版本号只有一个来源：workspace `Cargo.toml` 的 `version`（`tauri.conf.json` 故意不写 version）。
+release.yml 会拒绝 tag / `Cargo.toml` / `package.json` 三者不一致的发布。
 
 ---
 
@@ -51,24 +62,30 @@ release 构建（`cfg!(not(debug_assertions))`）由 `src-tauri/build.rs` 强制
 
 ```bash
 bun install
-bun run tauri dev        # 前端 + Rust，使用测试公钥与占位 endpoint，可正常启动
+bun run tauri dev        # 前端 + Rust，用 committed 公钥与 dev 占位 endpoint，可正常启动
 ```
 
-### 2.2 发布模式（必须齐全）
+### 2.2 发布模式（默认走 CI）
 
 ```bash
-export INSIGHTFORGE_UPDATER_PUBKEY="<与 C3 私钥配对的 base64 公钥>"
-export INSIGHTFORGE_UPDATER_ENDPOINT="https://<你的域名>/updater.json"
-export INSIGHTFORGE_CERT_THUMBPRINT="<C1 证书 thumbprint>"
-
-bun run tauri build      # 缺失任一变量 → build.rs panic，明确报错缺哪些
+# 1) 改版本：workspace Cargo.toml（并同步 package.json）
+git commit -am "chore: release v0.1.1"
+git tag v0.1.1 && git push --tags    # 触发 release.yml
 ```
 
-### 2.3 升级 manifest（外部，C2/C3）
+CI 依次跑：私钥存在性检查 → tag/版本一致性 → 前端三绿 → `tauri-apps/tauri-action@v0`
+（构建 + minisign 签名 + 上传 + 生成 `latest.json`，Release 以草稿形式开出，人工点发布）。
 
-把 `tauri build` 产出的 `target/release/bundle/.../*.msi`/`.exe` 版本信息，
-用 C3 私钥签名生成 `updater.json` 并托管到 C2 的 HTTPS 端点。
-**此步骤依赖外部密钥与基础设施，不在本仓库执行。**
+### 2.3 本地复现发布构建（可选，只为验证产物）
+
+```bash
+export INSIGHTFORGE_UPDATER_ENDPOINT="https://github.com/<owner>/<repo>/releases/latest/download/latest.json"
+export TAURI_SIGNING_PRIVATE_KEY="<私钥全文>"   # 只从环境读，绝不写进任何文件
+bun run tauri build
+```
+
+产物在 `target/release/bundle/{msi,nsis}/`，每个安装包旁都有同名 `.sig`——
+`.sig` 与 `latest.json` 一起上传到 Release，客户端据此校验；**不要手工编造 `latest.json`**。
 
 ---
 

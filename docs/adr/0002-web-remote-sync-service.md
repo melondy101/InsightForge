@@ -81,17 +81,43 @@ UUIDv4，源文件级身份是 `(source_id, rel_path)`——`rel_path` 本来就
 
 模型调用仍受五类动作白名单约束（铁律 2 不变），疑似连续正文照旧丢弃。
 
+> 实现状态（2026-09-19）：`crates/core/src/egress.rs` 目前只有 `EgressBundle`；
+> `SyncBundle` 类型、它的数量/字段明示与 `kind='sync'` 审计行**尚未落地**。
+> 在此之前，铁律 3 的这条修订没有机械约束——没有任何类型阻止同步载荷携带绝对路径。
+> 与服务端同工单交付（见 `docs/HANDOFF.md` 待办）。
+
 ### 6. 分发与更新
 
 - 桌面：GitHub Actions 打 Windows 安装包（MSI/EXE），产物上传 GitHub Release，
-  `latest.json` 由同一 pipeline 生成；updater endpoint 与签名公钥从 CI secret 注入，
-  不再用 `tauri.conf.json` 里的 `localhost` 占位值。
+  `latest.json` 由同一 pipeline 生成。签名公钥是公开数据、随 `tauri.conf.json` 进仓；
+  私钥才是 CI secret。endpoint 由构建期注入（`tauri.conf.json` 里保留 dev 占位值，
+  release 构建缺真实值时 `build.rs` 直接 panic）。
 - 网页与服务端：同一 tag 触发部署 job，「部署即更新」，无独立版本通道。
   现状：桌面侧 `release.yml` 已落地（tag → 打包 → minisign 签名 → Release + `latest.json`），
   签名公钥已换成真实 minisign 公钥，endpoint 由 CI 注入；
   网页侧部署 job **刻意尚未添加**——前端还没有 HTTP adapter，此刻部署等于发布一个不能用的壳。
 - 平台矩阵本期只承诺 Windows（与 `PRD.md:59` 一致）；Linux/macOS 不做承诺，
   `secrets.rs` 在非 Windows 拒绝服务的路径保持不变。
+
+### 7. 「一份核心」能跑在哪些 runtime：先探边界，不预先分层
+
+2026-09-19 用编译器而不是推测来回答这个问题，两条探测都在本机实跑：
+
+- **Linux（`rust:1.90.0` 容器，`x86_64-unknown-linux-gnu`）**：`cargo test -p insightforge-core --locked`
+  与 `cargo clippy -p insightforge-core --all-targets -- -D warnings` 全绿。探测前有三处不兼容，
+  都是这次修掉的：`tests/sources.rs` 未加 cfg 就调用 `std::os::windows::fs::symlink_file`
+  （改成平台分派 helper，同一逃逸断言在 Linux 上真的跑通了）；junction 测试用的是 Windows 专有机制
+  （`#[cfg(windows)]`）；`scan.rs`/`secrets.rs` 各有一处非 Windows 下的死代码警告。
+  注意 `ci.yml` 的 ubuntu 腿早就配了 clippy `-D warnings` + `cargo test`，但从未在本地验证过——
+  在这三条 commit 之前，那条腿必然是红的。**服务端复用 core 的前提由这条 CI 机械保证，不需要新的抽象层。**
+- **wasm32-unknown-unknown**：`cargo check` 死在依赖图第一层（`getrandom` 要求 `js` feature，经 `uuid`
+  传进来），还没轮到本仓库的代码。要在浏览器里跑 core，得同时换掉 `rusqlite`(bundled)、
+  阻塞式 `ureq`、`std::thread` 执行器，并给 `getrandom` 装 `js`——那是换一套依赖，不是加一层 port。
+  而本 ADR 的网页形态（§1）本来就是静态站 + HTTP adapter，不含「浏览器里跑 SQL/文件」。
+
+**决定**：不给 `crates/core` 预置 ports & adapters 分层。把 85 条 SQL 逐表换成 port 通不过 deletion test——
+复杂度只是搬家。重新评估的触发条件写清楚：真要出 Linux/macOS 桌面包时，`secrets.rs` 需要第 3 个
+SecretStore adapter（keyring 后端），那是有人要用的真实需求，届时再补。
 
 ## 代价与风险
 

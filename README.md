@@ -57,7 +57,7 @@ bun run tauri build          # 打包桌面应用
 为确保搜索执行时 FTS5 索引已经提交，Rust 提供 `sources_await_index_committed(sourceId: String) -> IndexStatus`。
 
 1. 前端在来源变更后调用该命令。
-2. 如果对应 backfill 尚在运行，Rust 通过 `JobDone` Condvar 同步等待，不使用 sleep 或轮询。
+2. 如果对应 backfill 尚在运行，Rust 通过 `JobProgress` 的状态表同步等待（`await_settled`），不使用 sleep 或轮询。
 3. 返回 `IndexStatus` 后，前端仅在 `searchable=true` 时启用搜索。
 
 `IndexStatus` 包含来源 ID、已索引文件数、片段数和 `searchable`；后者为 `true` 时，表示 FTS5 已写入 SQLite，搜索可命中已索引片段。

@@ -32,7 +32,7 @@
 
 - **A. 已由当前 main 验证**：在本地环境可运行命令复跑并产生产物。
 - **B. 代码存在但未在真实 Windows 桌面验证**：逻辑完备，但需真实安装包/WebView2/签名才能确认。
-- **C. 必须由用户提供外部条件才能完成**：签名证书、HTTPS updater endpoint、真实安装升级实测。
+- **C. 必须由用户提供外部条件才能完成**：updater 私钥托管、仓库推送（决定清单端点可达）、真实安装升级实测。
 - **D. 历史文档已过时 / 与代码矛盾**：下文明确列出，已或待修正。
 
 ---
@@ -49,7 +49,7 @@
 | A4 | 索引-搜索时序契约 | `await_index_committed` 后才 `searchable` | `cargo test -p insightforge-core --test index_search_contract` | 3 tests |
 | A5 | 迁移框架 + schema | 迁移严格递增；打开后迁移版本可观察 | `cargo test -p insightforge-core --test schema --test repository` | 12 tests |
 | A6 | BYOK 守门与脱敏 | 无 Key/关闭/连接失败均明确降级，报告不含明文 | `cargo test -p insightforge-core --test settings` | 14 tests |
-| A7 | Release 配置 fail-closed | 缺 pubkey/endpoint/thumbprint 时 release 构建 panic | `cargo test -p insightforge-desktop`（updater_tests）+ `build.rs` 编译期检查 | 10 tests |
+| A7 | Release 配置 fail-closed | release 缺真实 endpoint 即 panic；配置里不许残留 `${env.}` 占位；公钥必须是真 minisign key | `cargo test -p insightforge-desktop`（`updater_tests`）+ `build.rs` 编译期检查 | 7 tests |
 | A8 | 冲突三选一（**本分支新增**） | keep_local / adopt_external / save_as_copy 行为正确 | `cargo test -p insightforge-core drafts` + 前端测试 | Rust + TS 测试（见 §4） |
 | A9 | 草稿不再静默丢弃磁盘 .md（**本分支新增**） | list() 自动登记游离草稿 | `cargo test -p insightforge-core drafts` | Rust 测试 |
 | A10 | 原子保存临时文件安全（**本分支新增**） | 唯一临时名 + 残留清理 | `cargo test -p insightforge-core drafts` | Rust 测试 |
@@ -75,13 +75,13 @@
 
 | # | 阻塞项 | 必须由用户提供 | 当前状态 |
 | --- | --- | --- | --- |
-| C1 | 代码签名证书 | Windows 代码签名证书（含 thumbprint） | 未提供；`build.rs` 在 release 缺 `INSIGHTFORGE_CERT_THUMBPRINT` 时 fail-closed |
-| C2 | HTTPS updater endpoint | 可访问的 `https://.../updater.json` 托管 | 未提供；`tauri.conf.json` 当前为 dev 占位 `https://localhost/updater-dev.json` |
-| C3 | updater 签名密钥对 | 与 endpoint 上架 manifest 对应的私钥 | 未提供；`build.rs` 在 release 缺 `INSIGHTFORGE_UPDATER_PUBKEY` 时 fail-closed |
-| C4 | 安装 → 升级 E2E | 真实安装旧版并升级到新版 | 未执行；依赖 C1–C3 与真实环境 |
+| C1 | 代码签名证书（**已降级为可选**） | Windows 代码签名证书（含 thumbprint） | 未提供；缺省时 `build.rs` 只 warn，安装包不签名 → 首次下载有 SmartScreen 提示，updater 校验不受影响 |
+| C2 | updater 清单端点 | 推送到 GitHub 并开出 Release | release.yml 已把端点定为 `.../releases/latest/download/latest.json`（构建期注入）；仓库未推送前该地址不存在 |
+| C3 | updater minisign 私钥 | 把私钥内容存进仓库 secret `TAURI_SIGNING_PRIVATE_KEY` 并离线备份 | 密钥对已生成、公钥已进仓；**私钥目前只在构建机 temp 目录**，缺它 release.yml 第一步即退出 |
+| C4 | 安装 → 升级 E2E | 真实安装旧版并升级到新版 | 未执行；依赖 C2/C3 与真实环境 |
 
 > 这些项是**用户的待办**，本分支不伪造、不绕过、不标记为已完成。
-> 拿到 C1–C3 后，按 `docs/RELEASE-RUNBOOK.md` 即可构建/签名/托管/安装/升级。
+> 逐项做法与失败症状见 `docs/RELEASE-RUNBOOK.md` §0–§2。
 
 ---
 
