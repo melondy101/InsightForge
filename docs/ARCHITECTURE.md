@@ -107,13 +107,18 @@ Tauri 2 的 permissions / scopes / capabilities 负责命令与窗口绑定；�
 
 Tauri 2 `handle.emit("sources://progress", ...)` 在开发模式 WebView2 通道中存在事件丢失窗口。Backfill 完成时的 `BackfillCompleted` 事件**无法可靠到达前端 listen**，导致前端仅依赖事件驱动的进度 UI 会出现状态不同步。
 
-### Condvar 解决方案
+### 状态解决方案
 
-引入 `JobDone` 信号（`Arc<Mutex<bool>> + Condvar`）：
+进度不是事件，而是状态：`JobProgress`（`Mutex<HashMap<source_id, JobSnapshot>> + Condvar`）
+是唯一的一份「谁在跑到第几个文件 / 落定了没」。事件通道改成挂在它 downstream 的转发：
+`Sources::new(repo, sink)` 内部 `sink = jobs.pipe(sink)`，先记状态再发出。
 
-- backfill 完成后，executor 线程内先 `running.remove(job_id)`，再 `mark_done()` → `notify_all()`
-- `await_index_committed()` 若发现 source 仍在 `running` map，则 `Condvar::wait_while(|d| !*d)` 阻塞
-- **零 sleep / 零 poll**：唤醒由 Condvar 精确触发，无时间猜测
+- indexer 的每条出口（started / file_indexed / completed / cancelled / failed）都经这条链，
+  所以状态一定随事件前进，等待者由 `notify_all` 精确唤醒——**零 sleep / 零 poll**
+- `add()` 之后、首条事件之前也要算「在跑」：`spawn_backfill` 先 `jobs.begin(id)` 再唤醒线程，
+  否则 `await_index_committed` 会因状态为空而立刻返回 `searchable = false`（实测竞态）
+- 前端不再靠事件独占进度：`SourceSummary.progress` 带着状态，列表刷新既兜底（挂载前错过的
+  事件）也修剪（结束事件丢失时不会留下卡住的进度条）
 
 ### 公共命令
 
@@ -121,7 +126,7 @@ Tauri 2 `handle.emit("sources://progress", ...)` 在开发模式 WebView2 通道
 
 ```
 阶段 0: 验证 source 存在（返回 SourceNotFound 若已删除）
-阶段 1: 若在 running map，阻塞等待 Condvar 信号
+阶段 1: jobs.await_settled(source_id) —— 仍在补扫就阻塞到落定
 阶段 2: 从 DB 读 file_count + fragment_count
 返回: IndexStatus { source_id, file_count, fragment_count, searchable }
 ```
@@ -130,7 +135,9 @@ Tauri 2 `handle.emit("sources://progress", ...)` 在开发模式 WebView2 通道
 
 ### 错误处理要点
 
-- `spawn_backfill` 错误路径：先 `running.remove()` + 回滚，后 `mark_done()`，防止 `await_index_committed` 在清理前看到信号
+- `spawn_backfill` 错误路径：先 `running.remove()`，再记一条 `BackfillCancelled` 让状态落定，
+  防止 `await_index_committed` 永远等一个不会来的终态
+- `remove()` 先 `cancel()` + `await_settled()` 再删索引树，并 `jobs.forget(id)` 清状态
 - Condvar poison 处理：`lock().unwrap_or_else(|e| e.into_inner())` 保留原始 panic 上下文，允许等待继续
 - `COUNT(*)` 在 SQLite 中永远 `>= 0`，`u64::try_from` 使用 `expect` 而非 `unwrap_or(0)`
 
