@@ -1,6 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
-
-import { toCommandError, type CommandErrorShape } from '../sources/api';
+import { callCommand } from '../native/command-client';
 
 /**
  * diagnostics 命令 seam 的前端薄投影（Phase C）。
@@ -34,19 +32,11 @@ export interface DiagnosticBundle {
   events: LogEntry[];
 }
 
-async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
-  try {
-    return await invoke<T>(command, args);
-  } catch (err) {
-    throw toCommandError(err);
-  }
-}
-
 export const diagnosticsApi = {
   getSnapshot: (version: string) =>
-    call<DiagnosticSnapshot>('diagnostics_snapshot', { version }),
+    callCommand<DiagnosticSnapshot>('diagnostics_snapshot', { version }),
   getEventLog: (limit?: number) =>
-    call<string>('diagnostics_event_log', { limit: limit ?? null }),
+    callCommand<string>('diagnostics_event_log', { limit: limit ?? null }),
 };
 
 /// 把结构化快照格式化为可读文本（用于复制/导出）。
@@ -118,4 +108,3 @@ export function parseEventLog(json: string): LogEntry[] {
   }
 }
 
-export type { CommandErrorShape };

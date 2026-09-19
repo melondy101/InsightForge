@@ -22,7 +22,6 @@ vi.mock('./api', () => ({
     remove: vi.fn(),
     sync: vi.fn(),
   },
-  toCommandError: (err: unknown) => ({ code: 'unknown', message: String(err) }),
 }));
 
 function emit(payload: Record<string, unknown>) {

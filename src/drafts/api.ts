@@ -1,14 +1,9 @@
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '../native/command-client';
 
 /**
  * drafts 命令 seam 的前端薄投影（ARCHITECTURE §4）。
  * 类型与 crates/core/src/drafts.rs 的 serde 输出一一对应。
  */
-
-export type DraftsErrorShape = {
-  code: string;
-  message: string;
-};
 
 export interface DraftFile {
   id: string;
@@ -28,22 +23,14 @@ export interface Conflict {
   externalContent: string;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-export function toDraftsError(err: unknown): DraftsErrorShape {
-  if (isRecord(err) && typeof err.code === 'string' && typeof err.message === 'string') {
-    return { code: err.code, message: err.message };
-  }
-  return { code: 'unknown', message: err instanceof Error ? err.message : String(err) };
-}
-
 /**
  * Rust 将 Conflict 序列化为 `DraftsError::Conflict(message)` 中的 message 字段
  * （camelCase JSON）。前端需完整解析，尤其是 externalContent——否则「采用外部」
  * 将丢失可用内容。解析失败时返回 null，由调用方回退到原始 message。
  */
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
 export function parseConflict(message: string): Conflict | null {
   if (!message) return null;
   try {
@@ -68,22 +55,14 @@ export function parseConflict(message: string): Conflict | null {
   }
 }
 
-async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
-  try {
-    return await invoke<T>(command, args);
-  } catch (err) {
-    throw toDraftsError(err);
-  }
-}
-
 export const draftsApi = {
-  ensureDirectory: () => call<void>('drafts_ensure_directory'),
-  list: () => call<DraftFile[]>('drafts_list'),
-  create: (filename: string) => call<DraftFile>('drafts_create', { filename }),
-  open: (filename: string) => call<DraftFile>('drafts_open', { filename }),
+  ensureDirectory: () => callCommand<void>('drafts_ensure_directory'),
+  list: () => callCommand<DraftFile[]>('drafts_list'),
+  create: (filename: string) => callCommand<DraftFile>('drafts_create', { filename }),
+  open: (filename: string) => callCommand<DraftFile>('drafts_open', { filename }),
   save: (filename: string, content: string) =>
-    call<DraftFile>('drafts_save', { filename, content }),
-  delete: (filename: string) => call<void>('drafts_delete', { filename }),
+    callCommand<DraftFile>('drafts_save', { filename, content }),
+  delete: (filename: string) => callCommand<void>('drafts_delete', { filename }),
   resolveConflict: (filename: string, resolution: 'keep_local' | 'adopt_external' | 'save_as_copy', localContent: string) =>
-    call<DraftFile>('drafts_resolve_conflict', { filename, resolution, localContent }),
+    callCommand<DraftFile>('drafts_resolve_conflict', { filename, resolution, localContent }),
 };

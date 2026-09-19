@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { referencesApi, type Reference, type ReferencesErrorShape, toReferencesError } from './api';
+import { referencesApi, type Reference } from './api';
+import { toCommandError, type CommandErrorShape } from '../native/command-client';
 
 export interface ReferencesModel {
   references: Reference[];
-  error: ReferencesErrorShape | null;
+  error: CommandErrorShape | null;
   actions: {
     create: (draftId: string, fragmentId: number) => Promise<void>;
     adopt: (id: string) => Promise<void>;
@@ -15,13 +16,13 @@ export interface ReferencesModel {
 
 export function useReferences(draftId?: string): ReferencesModel {
   const [references, setReferences] = useState<Reference[]>([]);
-  const [error, setError] = useState<ReferencesErrorShape | null>(null);
+  const [error, setError] = useState<CommandErrorShape | null>(null);
 
   const refresh = useCallback(async (id: string) => {
     try {
       setReferences(await referencesApi.list(id));
     } catch (err) {
-      setError(toReferencesError(err));
+      setError(toCommandError(err));
     }
   }, []);
 
@@ -37,7 +38,7 @@ export function useReferences(draftId?: string): ReferencesModel {
         const ref = await referencesApi.create(createDraftId, fragmentId);
         setReferences((current) => [ref, ...current]);
       } catch (err) {
-        setError(toReferencesError(err));
+        setError(toCommandError(err));
       }
     },
     [],
@@ -51,7 +52,7 @@ export function useReferences(draftId?: string): ReferencesModel {
           current.map((r) => (r.id === id ? { ...r, adopted: true } : r)),
         );
       } catch (err) {
-        setError(toReferencesError(err));
+        setError(toCommandError(err));
       }
     },
     [],
@@ -65,7 +66,7 @@ export function useReferences(draftId?: string): ReferencesModel {
           current.map((r) => (r.sourceId === sourceId ? { ...r, sourceDeleted: true } : r)),
         );
       } catch (err) {
-        setError(toReferencesError(err));
+        setError(toCommandError(err));
       }
     },
     [],

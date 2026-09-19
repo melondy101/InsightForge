@@ -1,5 +1,5 @@
 import type { AiSettings, TestConnectionReport } from './api';
-import type { CommandErrorShape } from '../sources/api';
+import { type CommandErrorShape } from '../native/command-client';
 
 /**
  * 设置视图的状态投影（纯函数，可 vitest 直测）：

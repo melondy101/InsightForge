@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { thoughtsApi, type ThoughtCard, type ThoughtsErrorShape, toThoughtsError } from './api';
+import { thoughtsApi, type ThoughtCard } from './api';
+import { toCommandError, type CommandErrorShape } from '../native/command-client';
 
 export interface ThoughtsModel {
   cards: ThoughtCard[];
-  error: ThoughtsErrorShape | null;
+  error: CommandErrorShape | null;
   actions: {
     upsert: (input: {
       id?: string;
@@ -24,13 +25,13 @@ export interface ThoughtsModel {
 
 export function useThoughts(): ThoughtsModel {
   const [cards, setCards] = useState<ThoughtCard[]>([]);
-  const [error, setError] = useState<ThoughtsErrorShape | null>(null);
+  const [error, setError] = useState<CommandErrorShape | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       setCards(await thoughtsApi.list());
     } catch (err) {
-      setError(toThoughtsError(err));
+      setError(toCommandError(err));
     }
   }, []);
 
@@ -61,7 +62,7 @@ export function useThoughts(): ThoughtsModel {
           return [card, ...current];
         });
       } catch (err) {
-        setError(toThoughtsError(err));
+        setError(toCommandError(err));
       }
     },
     [],
@@ -73,7 +74,7 @@ export function useThoughts(): ThoughtsModel {
         await thoughtsApi.delete(id);
         setCards((current) => current.filter((c) => c.id !== id));
       } catch (err) {
-        setError(toThoughtsError(err));
+        setError(toCommandError(err));
       }
     },
     [],

@@ -8,10 +8,10 @@ import {
   formatEventLog,
   formatSnapshot,
   parseEventLog,
-  type CommandErrorShape,
   type DiagnosticSnapshot,
   type LogEntry,
 } from './api';
+import { type CommandErrorShape } from '../native/command-client';
 
 /**
  * 诊断面板：用户可一键复制或导出脱敏诊断快照（Phase C）。

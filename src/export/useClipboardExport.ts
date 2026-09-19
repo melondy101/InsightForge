@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 
 import { markdownToWeChatHtml, markdownToPlainText } from './clipboard';
 import { exportApi } from './api';
-import { toCommandError } from '../native/command-error';
+import { toCommandError } from '../native/command-client';
 
 export interface ClipboardExportModel {
   exporting: boolean;

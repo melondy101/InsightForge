@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { CommandErrorShape, SourceSummary } from './api';
+import type { SourceSummary } from './api';
 import { progressPercent } from './progress';
 import { useSources } from './useSources';
+import { type CommandErrorShape } from '../native/command-client';
 
 /** 错误 code → i18n key；未知 code 回退到 generic（带 Rust message 供诊断）。 */
 function errorText(t: (key: string, options?: Record<string, unknown>) => string, error: CommandErrorShape): string {

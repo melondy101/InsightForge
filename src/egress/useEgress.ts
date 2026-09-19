@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { egressApi, type AuditRecord, type EgressBundle, type EgressErrorShape, toEgressError } from './api';
+import { egressApi, type AuditRecord, type EgressBundle } from './api';
+import { toCommandError, type CommandErrorShape } from '../native/command-client';
 
 export interface EgressModel {
   bundle: EgressBundle | null;
   records: AuditRecord[];
-  error: EgressErrorShape | null;
+  error: CommandErrorShape | null;
   actions: {
     build: (draftContent: string, draftId: string, searchQuery?: { sourceId: string; query: string; limit: number }) => Promise<void>;
     log: (model: string, fragmentCount: number, fragmentIds: string[], status: string) => Promise<void>;
@@ -17,13 +18,13 @@ export interface EgressModel {
 export function useEgress(): EgressModel {
   const [bundle, setBundle] = useState<EgressBundle | null>(null);
   const [records, setRecords] = useState<AuditRecord[]>([]);
-  const [error, setError] = useState<EgressErrorShape | null>(null);
+  const [error, setError] = useState<CommandErrorShape | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       setRecords(await egressApi.list(50));
     } catch (err) {
-      setError(toEgressError(err));
+      setError(toCommandError(err));
     }
   }, []);
 
@@ -45,7 +46,7 @@ export function useEgress(): EgressModel {
         );
         await refresh();
       } catch (err) {
-        setError(toEgressError(err));
+        setError(toCommandError(err));
       }
     },
     [refresh],
@@ -57,7 +58,7 @@ export function useEgress(): EgressModel {
         await egressApi.auditLog(model, fragmentCount, fragmentIds, status);
         await refresh();
       } catch (err) {
-        setError(toEgressError(err));
+        setError(toCommandError(err));
       }
     },
     [refresh],

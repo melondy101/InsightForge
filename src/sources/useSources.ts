@@ -2,14 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 
-import {
-  sourcesApi,
-  toCommandError,
-  type CommandErrorShape,
-  type SourceSummary,
-  type SourcesEvent,
-} from './api';
+import { sourcesApi, type SourceSummary, type SourcesEvent } from './api';
 import { DEFAULT_IGNORE_GLOBS } from './defaults';
+import { toCommandError, type CommandErrorShape } from '../native/command-client';
 
 /** 某一来源的补扫进度（事件驱动）。 */
 export interface BackfillProgress {

@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '../native/command-client';
 
 /**
  * sources 命令 seam 的前端薄投影（ARCHITECTURE §4）。
@@ -41,42 +41,18 @@ export interface IndexStatus {
   searchable: boolean;
 }
 
-export interface CommandErrorShape {
-  code: string;
-  message: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-/** 把 invoke 的 rejection 规整为稳定结构，避免到处做类型收窄。 */
-export function toCommandError(err: unknown): CommandErrorShape {
-  if (isRecord(err) && typeof err.code === 'string' && typeof err.message === 'string') {
-    return { code: err.code, message: err.message };
-  }
-  return { code: 'unknown', message: err instanceof Error ? err.message : String(err) };
-}
-
-async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
-  try {
-    return await invoke<T>(command, args);
-  } catch (err) {
-    throw toCommandError(err);
-  }
-}
-
 export const sourcesApi = {
   add: (root: string, name: string, ignoreGlobs?: string[]) =>
-    call<SourceSummary>('sources_add', { root, name, ignoreGlobs }),
-  list: () => call<SourceSummary[]>('sources_list'),
-  pause: (id: string, paused: boolean) => call<SourceSummary>('sources_pause', { id, paused }),
-  remove: (id: string) => call<void>('sources_remove', { id }),
-  sync: (id: string) => call<void>('sources_sync', { id }),
-  reconcile: (id: string) => call<void>('sources_reconcile', { id }),
-  rebuildIndex: (id: string) => call<void>('sources_rebuild_index', { id }),
+    callCommand<SourceSummary>('sources_add', { root, name, ignoreGlobs }),
+  list: () => callCommand<SourceSummary[]>('sources_list'),
+  pause: (id: string, paused: boolean) =>
+    callCommand<SourceSummary>('sources_pause', { id, paused }),
+  remove: (id: string) => callCommand<void>('sources_remove', { id }),
+  sync: (id: string) => callCommand<void>('sources_sync', { id }),
+  reconcile: (id: string) => callCommand<void>('sources_reconcile', { id }),
+  rebuildIndex: (id: string) => callCommand<void>('sources_rebuild_index', { id }),
   setSyncInterval: (id: string, intervalMinutes: number) =>
-    call<SourceSummary>('sources_set_sync_interval', { id, intervalMinutes }),
+    callCommand<SourceSummary>('sources_set_sync_interval', { id, intervalMinutes }),
   awaitIndexCommitted: (sourceId: string) =>
-    call<IndexStatus>('sources_await_index_committed', { sourceId }),
+    callCommand<IndexStatus>('sources_await_index_committed', { sourceId }),
 };

@@ -1,4 +1,4 @@
-import { callCommand } from '../native/command-error';
+import { callCommand } from '../native/command-client';
 
 export interface ClipboardPayload {
   html: string;

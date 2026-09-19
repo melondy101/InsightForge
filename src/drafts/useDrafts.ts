@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { draftsApi, type DraftFile, type DraftsErrorShape, toDraftsError, parseConflict } from './api';
+import { draftsApi, type DraftFile, parseConflict } from './api';
+import { toCommandError, type CommandErrorShape } from '../native/command-client';
 
 export type DraftsViewState = 'idle' | 'loading' | 'conflict';
 
@@ -10,7 +11,7 @@ export interface DraftsModel {
   content: string;
   status: DraftsViewState;
   conflict: { message: string; baseline: string; local: string; external: string } | null;
-  error: DraftsErrorShape | null;
+  error: CommandErrorShape | null;
   actions: {
     create: (filename: string) => Promise<void>;
     open: (filename: string) => Promise<void>;
@@ -34,13 +35,13 @@ export function useDrafts() {
     local: string;
     external: string;
   } | null>(null);
-  const [error, setError] = useState<DraftsErrorShape | null>(null);
+  const [error, setError] = useState<CommandErrorShape | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       setDrafts(await draftsApi.list());
     } catch (err) {
-      setError(toDraftsError(err));
+      setError(toCommandError(err));
     }
   }, []);
 
@@ -58,7 +59,7 @@ export function useDrafts() {
         setContent('');
         await refresh();
       } catch (err) {
-        setError(toDraftsError(err));
+        setError(toCommandError(err));
       } finally {
         setStatus('idle');
       }
@@ -75,7 +76,7 @@ export function useDrafts() {
         setContent('');
         await refresh();
       } catch (err) {
-        setError(toDraftsError(err));
+        setError(toCommandError(err));
       } finally {
         setStatus('idle');
       }
@@ -94,7 +95,7 @@ export function useDrafts() {
       setStatus('idle');
       await refresh();
     } catch (err) {
-      const shape = toDraftsError(err);
+      const shape = toCommandError(err);
       if (shape.code === 'conflict') {
         // Rust 将 Conflict 序列化为 message 字段（camelCase JSON），此处完整解析，
         // 绝不丢弃 externalContent，否则「采用外部」将无内容可用。
@@ -124,7 +125,7 @@ export function useDrafts() {
       setContent('');
       await refresh();
     } catch (err) {
-      setError(toDraftsError(err));
+      setError(toCommandError(err));
     } finally {
       setStatus('idle');
     }
@@ -157,7 +158,7 @@ export function useDrafts() {
         setContent(local);
         await refresh();
       } catch (err) {
-        setError(toDraftsError(err));
+        setError(toCommandError(err));
       } finally {
         setConflict(null);
         setStatus('idle');

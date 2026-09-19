@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import {
-  settingsApi,
-  type AiSampleReply,
-  type AiSettings,
-  type CommandErrorShape,
-  type TestConnectionReport,
-} from './api';
+import { settingsApi, type AiSampleReply, type AiSettings, type TestConnectionReport } from './api';
 import { aiStatusView, apiKeyView, draftFromSnapshot, settingsErrorView, testResultView } from './view';
+import { type CommandErrorShape } from '../native/command-client';
 
 /** 样例 AI 命令的固定最小提示词（演示守门语义用）。 */
 const SAMPLE_PROMPT = 'ping';

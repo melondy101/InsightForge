@@ -1,6 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
-
-import { toCommandError, type CommandErrorShape } from '../sources/api';
+import { callCommand } from '../native/command-client';
 
 /**
  * settings 命令 seam 的前端薄投影（08 号票）。
@@ -27,23 +25,14 @@ export interface AiSampleReply {
   content: string;
 }
 
-async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
-  try {
-    return await invoke<T>(command, args);
-  } catch (err) {
-    throw toCommandError(err);
-  }
-}
-
-export type { CommandErrorShape };
-
 export const settingsApi = {
-  get: () => call<AiSettings>('settings_get'),
+  get: () => callCommand<AiSettings>('settings_get'),
   setAi: (baseUrl: string | null, model: string | null) =>
-    call<AiSettings>('settings_set_ai', { baseUrl, model }),
-  setAiEnabled: (enabled: boolean) => call<AiSettings>('settings_set_ai_enabled', { enabled }),
-  setApiKey: (apiKey: string) => call<AiSettings>('settings_set_api_key', { apiKey }),
-  clearApiKey: () => call<AiSettings>('settings_clear_api_key'),
-  testConnection: () => call<TestConnectionReport>('settings_test_connection'),
-  aiSample: (prompt: string) => call<AiSampleReply>('ai_sample', { prompt }),
+    callCommand<AiSettings>('settings_set_ai', { baseUrl, model }),
+  setAiEnabled: (enabled: boolean) =>
+    callCommand<AiSettings>('settings_set_ai_enabled', { enabled }),
+  setApiKey: (apiKey: string) => callCommand<AiSettings>('settings_set_api_key', { apiKey }),
+  clearApiKey: () => callCommand<AiSettings>('settings_clear_api_key'),
+  testConnection: () => callCommand<TestConnectionReport>('settings_test_connection'),
+  aiSample: (prompt: string) => callCommand<AiSampleReply>('ai_sample', { prompt }),
 };

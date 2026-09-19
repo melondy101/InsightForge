@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { searchApi, type EvidenceCard, type FragmentContext, type SearchErrorShape, toSearchError } from './api';
+import { searchApi, type EvidenceCard, type FragmentContext } from './api';
 import { referencesApi } from '../references/api';
 import { sourcesApi, type IndexStatus } from '../sources/api';
 import { useAppState } from '../AppStateContext';
+import { toCommandError, type CommandErrorShape } from '../native/command-client';
 
 function errorText(
   t: (key: string, options?: Record<string, unknown>) => string,
-  error: SearchErrorShape,
+  error: CommandErrorShape,
 ): string {
   const known = [
     'repository_error',
@@ -32,7 +33,7 @@ export function SearchView({ sourceId, sourceName }: SearchViewProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<EvidenceCard[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<SearchErrorShape | null>(null);
+  const [error, setError] = useState<CommandErrorShape | null>(null);
   const [context, setContext] = useState<FragmentContext | null>(null);
   const [pinnedFragmentId, setPinnedFragmentId] = useState<number | null>(null);
   const [pinError, setPinError] = useState<string | null>(null);
@@ -84,7 +85,7 @@ export function SearchView({ sourceId, sourceName }: SearchViewProps) {
       const cards = await searchApi.query(sourceId, query.trim(), 20);
       setResults(cards);
     } catch (err) {
-      setError(toSearchError(err));
+      setError(toCommandError(err));
       setResults([]);
     } finally {
       setLoading(false);
