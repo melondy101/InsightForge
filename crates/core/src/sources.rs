@@ -6,8 +6,7 @@
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::{Arc, Condvar, Mutex};
-use std::time::Duration;
+use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use thiserror::Error;
@@ -16,6 +15,7 @@ use walkdir::WalkDir;
 use crate::executor::{CancelToken, Executor};
 use crate::identity::new_id;
 use crate::indexer;
+use crate::job_progress::{JobProgress, JobSnapshot};
 use crate::repository::Repository;
 use crate::scan::{
     canonical_path, file_identity, normalize_root, stays_within_root, validate_rel_path,
@@ -82,6 +82,9 @@ pub struct SourceSummary {
     pub file_count: u64,
     pub ignore_globs: Vec<String>,
     pub last_synced_at: Option<String>,
+    /// 进行中的补扫进度；空闲或已落省时为 `None`。
+    /// 列表带着状态而非只靠事件推送：错过（或丢掉）结束事件不会留下卡住的进度条。
+    pub progress: Option<JobSnapshot>,
 }
 
 /// 来源索引状态（await_index_committed 返回）：前端在允许 search 前必查。
@@ -143,79 +146,16 @@ impl SourcesError {
     }
 }
 
-/// 正在进行的补扫作业：取消令牌 + 完成通知（可被多观察者阻塞等待）。
+/// 正在进行的补扫作业：只留取消令牌；进度与完成状态归 [`JobProgress`]。
 struct RunningJob {
     cancel: CancelToken,
-    /// 共享的 "done" 信号：predicate + Condvar。
-    /// 完成时把 `done` 置为 true 并 notify_all；多个 await_index_committed / remove 路径
-    /// 可同时阻塞等待 commit 完成，避免各自 sleep 或 poll。
-    done_signal: Arc<JobDone>,
-}
-
-/// 共享的"补扫已完成"信号：predicate 由 condvar 守护，0 写入开销。
-struct JobDone {
-    done: Mutex<bool>,
-    cvar: Condvar,
-}
-
-impl JobDone {
-    fn new() -> Self {
-        Self {
-            done: Mutex::new(false),
-            cvar: Condvar::new(),
-        }
-    }
-
-    /// 阻塞直到 done=true；带可选超时用于可取消的等待路径。
-    fn wait(&self, timeout: Option<Duration>) -> bool {
-        // 无超时路径：阻塞直到被 notify。
-        if timeout.is_none() {
-            let done = self.done.lock().unwrap_or_else(|e| e.into_inner());
-            if *done {
-                return true;
-            }
-            let guard = self
-                .cvar
-                .wait_while(done, |d| !*d)
-                .unwrap_or_else(|e| e.into_inner());
-            return *guard;
-        }
-        // 有超时路径：循环 relock + wait_timeout，直到 done 或 deadline。
-        let deadline = std::time::Instant::now() + timeout.unwrap();
-        loop {
-            let mut done = self.done.lock().unwrap_or_else(|e| e.into_inner());
-            if *done {
-                return true;
-            }
-            if std::time::Instant::now() >= deadline {
-                return false;
-            }
-            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
-            let guard = self
-                .cvar
-                .wait_timeout(done, remaining)
-                .unwrap_or_else(|e| e.into_inner());
-            done = guard.0;
-            if *done {
-                return true;
-            }
-        }
-    }
-
-    /// 标记完成并唤醒全部等待者（idempotent）。
-    fn mark_done(&self) {
-        let mut done = self.done.lock().unwrap_or_else(|e| e.into_inner());
-        if !*done {
-            *done = true;
-            self.cvar.notify_all();
-        }
-    }
 }
 
 /// 来源管理服务：克隆/共享经 `Arc`，全部方法 `&self`。
 pub struct Sources {
     repo: Arc<Repository>,
     sink: EventSink,
+    jobs: Arc<JobProgress>,
     executor: Executor,
     running: Arc<Mutex<HashMap<String, RunningJob>>>,
 }
@@ -223,9 +163,11 @@ pub struct Sources {
 impl Sources {
     /// 构造服务并启动专门 executor（2 个工作线程）。
     pub fn new(repo: Arc<Repository>, sink: EventSink) -> Self {
+        let jobs = Arc::new(JobProgress::new());
         Self {
             repo,
-            sink,
+            sink: jobs.pipe(sink),
+            jobs,
             executor: Executor::new(2),
             running: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -278,15 +220,15 @@ impl Sources {
     /// 来源列表（名称/路径/状态/文件数/忽略规则/最近同步时间）。
     pub fn list(&self) -> Result<Vec<SourceSummary>, SourcesError> {
         let rows = self.repo.read(store::list_sources)?;
-        let running = self.running.lock().expect("running lock");
         Ok(rows
             .into_iter()
             .map(|(source, file_count)| SourceSummary {
-                status: if running.contains_key(&source.id) {
+                status: if self.jobs.is_indexing(&source.id) {
                     SourceStatus::Indexing
                 } else {
                     SourceStatus::Idle
                 },
+                progress: self.jobs.running(&source.id),
                 id: source.id,
                 name: source.name,
                 root_path: source.root_path,
@@ -458,12 +400,12 @@ impl Sources {
             })?
             .ok_or_else(|| SourcesError::SourceNotFound(id.to_string()))?;
 
-        let job = self.running.lock().expect("running lock").remove(id);
-        if let Some(job) = job {
+        if let Some(job) = self.running.lock().expect("running lock").remove(id) {
             job.cancel.cancel();
             // 等 backfill 真退出再清理索引记录（避免与运行中的写竞态）
-            job.done_signal.wait(None);
+            self.jobs.await_settled(id, None);
         }
+        self.jobs.forget(id);
         let removed_id = id.to_string();
         self.repo
             .write(move |conn| store::delete_source_tree(conn, &removed_id))?;
@@ -503,16 +445,8 @@ impl Sources {
             return Err(SourcesError::SourceNotFound(source_id.to_string()));
         }
 
-        // 阶段 1：若 backfill 仍在跑，阻塞等待 JobDone 信号（纯 Condvar，无 sleep）。
-        let signal = {
-            let running = self.running.lock().expect("running lock");
-            running
-                .get(source_id)
-                .map(|job| Arc::clone(&job.done_signal))
-        };
-        if let Some(sig) = signal {
-            sig.wait(None);
-        }
+        // 阶段 1：仍在补扫就阻塞等它落定（谓词 + Condvar，无 sleep / poll）。
+        self.jobs.await_settled(source_id, None);
 
         // 阶段 2：从数据库读最终 commit 状态。
         let sid = source_id.to_string();
@@ -542,17 +476,17 @@ impl Sources {
 
     fn spawn_backfill(&self, source: &StoredSource) -> Result<(), SourcesError> {
         let cancel = CancelToken::new();
-        let done_signal = Arc::new(JobDone::new());
         {
             let mut running = self.running.lock().expect("running lock");
             if running.contains_key(&source.id) {
                 return Err(SourcesError::AlreadyIndexing(source.id.clone()));
             }
+            // 先登记再唤醒：作业在首条事件之前也必须算「在跑」。
+            self.jobs.begin(&source.id);
             running.insert(
                 source.id.clone(),
                 RunningJob {
                     cancel: cancel.clone(),
-                    done_signal: Arc::clone(&done_signal),
                 },
             );
         }
@@ -562,22 +496,21 @@ impl Sources {
         let job_running = Arc::clone(&self.running);
         let job_source = source.clone();
         let job_id = source.id.clone();
-        let job_signal = Arc::clone(&done_signal);
         let spawn_result = self.executor.spawn(Box::new(move || {
+            // run_backfill 的每条出口都会落下一个终态事件，JobProgress 因此一定能唤醒等待者。
             indexer::run_backfill(&job_repo, &job_source, &job_sink, &cancel);
             job_running.lock().expect("running lock").remove(&job_id);
-            // 在从 running map 移除后，标记 done 并唤醒所有等待者。
-            // 这保证 await_index_committed 即使在 cancel 路径下也能可靠返回。
-            job_signal.mark_done();
         }));
         if spawn_result.is_err() {
-            // executor 已关闭（正在退出）：先回滚，再释放等待者。
-            // 保证 await_index_committed 不会在清理完成前看到信号并继续。
+            // executor 已关闭（正在退出）：登记没跑起来的作业为已取消，再回滚。
             self.running
                 .lock()
                 .expect("running lock")
                 .remove(&source.id);
-            done_signal.mark_done();
+            self.jobs.record(&SourceEvent::BackfillCancelled {
+                source_id: source.id.clone(),
+                indexed_files: 0,
+            });
             return Err(SourcesError::Cancelled);
         }
         Ok(())
@@ -588,12 +521,7 @@ impl Sources {
         let file_count = self
             .repo
             .read(move |conn| store::file_count(conn, &counted_id))?;
-        let status = if self
-            .running
-            .lock()
-            .expect("running lock")
-            .contains_key(&source.id)
-        {
+        let status = if self.jobs.is_indexing(&source.id) {
             SourceStatus::Indexing
         } else {
             SourceStatus::Idle
@@ -607,6 +535,7 @@ impl Sources {
             file_count: u64::try_from(file_count).unwrap_or(0),
             ignore_globs: source.ignore_globs.clone(),
             last_synced_at: source.last_synced_at.clone(),
+            progress: self.jobs.running(&source.id),
         })
     }
 }

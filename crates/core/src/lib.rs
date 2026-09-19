@@ -14,6 +14,7 @@ pub mod executor;
 pub mod http_client;
 pub mod identity;
 mod indexer;
+pub mod job_progress;
 pub mod references;
 pub mod repository;
 pub mod scan;
@@ -40,6 +41,7 @@ pub use egress::{
 pub use executor::{CancelToken, Executor, ExecutorError};
 pub use http_client::{AiHttpClient, HttpClientError, HttpRequest, HttpResponse, UreqAiHttpClient};
 pub use identity::new_id;
+pub use job_progress::{JobPhase, JobProgress, JobSnapshot};
 pub use references::{Reference, ReferencesError, ReferencesService};
 pub use repository::{Migration, Migrator, Repository, RepositoryError};
 pub use scan::{
