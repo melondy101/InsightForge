@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { searchApi, type EvidenceCard, type FragmentContext } from './api';
+import { splitSnippet } from './snippet';
 import { referencesApi } from '../references/api';
 import { sourcesApi, type IndexStatus } from '../sources/api';
 import { useAppState } from '../AppStateContext';
@@ -191,11 +192,15 @@ export function SearchView({ sourceId, sourceName }: SearchViewProps) {
                   <strong data-el="search-card-source" className="evi__src">{card.sourceName}</strong>
                   <span data-el="search-card-path" className="evi__path">{card.relPath}</span>
                 </div>
-                <p
-                  className="evi__snip"
-                  data-el="search-card-snippet"
-                  dangerouslySetInnerHTML={{ __html: card.snippet }}
-                />
+                <p className="evi__snip" data-el="search-card-snippet">
+                  {splitSnippet(card.snippet).map((part, index) =>
+                    part.marked ? (
+                      <mark key={index}>{part.text}</mark>
+                    ) : (
+                      <span key={index}>{part.text}</span>
+                    ),
+                  )}
+                </p>
                 <div className="evi__foot">
                   <span data-el="search-card-rank" className="evi__rank">
                     {t('search.rank', { bm25: card.bm25.toFixed(2) })}
